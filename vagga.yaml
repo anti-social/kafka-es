@@ -1,0 +1,73 @@
+_default:
+  gradle-home: &gradle-home /work/.gradle
+  cmd-opts: &cmd-opts
+    container: kotlin-sdk
+    user-id: 1
+    external-user-id: 0
+    prerequisites: [_mk-gradle-user-home]
+    volumes:
+      /work/.gradle/caches: !CacheDir gradle-cache
+
+containers:
+  kotlin-sdk:
+    environ:
+      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+      GRADLE_USER_HOME: *gradle-home
+    setup:
+    - !Ubuntu xenial
+    - !Install
+      - openjdk-8-jdk-headless
+    - !EnsureDir /opt/gradle
+    - !Unzip
+      url: https://services.gradle.org/distributions/gradle-4.2.1-bin.zip
+      sha256: b551cc04f2ca51c78dd14edb060621f0e5439bdfafa6fd167032a09ac708fbc0
+      subdir: gradle-4.2.1
+      path: /opt/gradle
+    - !Sh ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle
+    - !EnsureDir /opt/kotlinc
+    - !Unzip
+      url: https://github.com/JetBrains/kotlin/releases/download/v1.1.51/kotlin-compiler-1.1.51.zip
+      sha256: 0b346b138390eb0235a6700f52cc1e2b491cf1f6db179a6d06a279ef1af57ccd
+      subdir: kotlinc
+      path: /opt/kotlinc
+    - !Sh ln -s /opt/kotlinc/bin/kotlinc /usr/local/bin/kotlinc
+
+commands:
+  _mk-gradle-user-home: !Command
+    container: kotlin-sdk
+    run: mkdir -p $GRADLE_USER_HOME/caches
+
+  gradle: !Command
+    <<: *cmd-opts
+    description: Runs arbitrary gradle task
+    run: [gradle]
+
+  daemon: !Command
+    <<: *cmd-opts
+    description: Run gradle daemon
+    run: |
+      # --foreground option runs daemon with different jvm options
+      # so then another gradle process rejects to connect to the daemon
+      LOG_DIR=$GRADLE_USER_HOME/daemon/4.2
+      rm -rf $LOG_DIR/daemon-*.out.log
+      gradle --dry-run --daemon build
+      tail -f $LOG_DIR/daemon-*.out.log
+
+  compile: !Command
+    <<: *cmd-opts
+    description: Compile project
+    run: [gradle, compileKotlin]
+
+  run: !Command
+    <<: *cmd-opts
+    description: Run test service
+    run:
+    - gradle
+    - run
+    - -Dlog4j.configuration=file:config/connect-log4j.properties
+    - -Dexec.args=config/connect-standalone.properties config/elasticsearch.properties
+
+  assemble: !Command
+    <<: *cmd-opts
+    description: Assembles the outputs of this project
+    run: [gradle, assemble]
