@@ -1,14 +1,24 @@
-plugins {
-    id 'org.jetbrains.kotlin.jvm' version '1.1.51'
+// We cannot use plugins in subprojects
+//plugins {
+//    id 'org.jetbrains.kotlin.jvm' version '1.1.51'
+//}
+
+buildscript {
+    ext.kotlinVersion = '1.1.51'
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+    }
 }
 
 apply plugin: 'application'
 
 repositories {
     mavenCentral()
-    maven {
-        url 'http://packages.confluent.io/maven/'
-    }
 }
 
 ext {
@@ -26,7 +36,7 @@ run {
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib"
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
     compile "org.apache.kafka:connect-api:$kafkaVersion"
     compile "org.apache.kafka:connect-json:$kafkaVersion"
     compile "org.apache.kafka:connect-runtime:$kafkaVersion"
