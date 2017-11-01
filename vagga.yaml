@@ -46,17 +46,12 @@ commands:
     <<: *cmd-opts
     description: Run gradle daemon
     run: |
-      # --foreground option runs daemon with different jvm options
-      # so then another gradle process rejects to connect to the daemon
-      LOG_DIR=$GRADLE_USER_HOME/daemon/4.2
-      rm -rf $LOG_DIR/daemon-*.out.log
-      gradle --dry-run --daemon build
-      tail -f $LOG_DIR/daemon-*.out.log
-
-  compile: !Command
-    <<: *cmd-opts
-    description: Compile project
-    run: [gradle, compileKotlin]
+      # --foreground option runs a daemon with incompatible jvm options
+      # so another gradle process rejects to connect to the daemon
+      gradle --dry-run --daemon
+      GRADLE_PID=$(pidof java)
+      echo "Gradle daemon successfully started [PID: $GRADLE_PID]."
+      while [ -e /proc/$GRADLE_PID ]; do sleep 1; done
 
   run: !Command
     <<: *cmd-opts
@@ -71,3 +66,38 @@ commands:
     <<: *cmd-opts
     description: Assembles the outputs of this project
     run: [gradle, assemble]
+
+  build: !Command
+    <<: *cmd-opts
+    description: Assembles and tests this project
+    run: [gradle, assemble]
+
+  test: !Command
+    <<: *cmd-opts
+    description: Runs the unit tests
+    run: [gradle, test]
+
+  check: !Command
+    <<: *cmd-opts
+    description: Runs all checks
+    run: [gradle, test]
+
+  compile: !Command
+    <<: *cmd-opts
+    description: Compiles all source sets
+    run: [gradle, classes, -x, processResources]
+
+  compile-test: !Command
+    <<: *cmd-opts
+    description: Compiles all test source sets
+    run: [gradle, testClasses, -x, processTestResources]
+
+  doc: !Command
+    <<: *cmd-opts
+    description: Generates Javadoc API documentation for the main source code
+    run: [gradle, javadoc]
+
+  clean: !Command
+    <<: *cmd-opts
+    description: Deletes the build directory
+    run: [gradle, clean]
