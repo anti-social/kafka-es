@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package company.evo.kafka.elasticsearch;
+
+message BulkAction {
+    enum Action {
+        INDEX = 0;
+        DELETE = 1;
+        UPDATE = 2;
+        CREATE = 3;
+    }
+    Action action = 1;
+    string index = 2;
+    string type = 3;
+    string id = 4;
+    string routing = 5;
+    string parent = 6;
+}
