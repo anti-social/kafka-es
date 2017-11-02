@@ -1,6 +1,8 @@
 syntax = "proto3";
 
-package company.evo.kafka.elasticsearch;
+package evo.kafka_es;
+
+option java_package = "company.evo.kafka.elasticsearch";
 
 message BulkAction {
     enum Action {
