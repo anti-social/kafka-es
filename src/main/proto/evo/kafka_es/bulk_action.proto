@@ -17,4 +17,8 @@ message BulkAction {
     string id = 4;
     string routing = 5;
     string parent = 6;
+    string version = 7;
+    string version_type = 8;
+    // Only valid for UPDATE action
+    string retry_on_conflict = 9;
 }
