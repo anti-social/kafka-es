@@ -44,18 +44,32 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
     companion object {
         val CONNECTION_URL = "connection.url"
         val TOPIC_INDEX_MAP = "topic.index.map"
+        val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include_default_values"
+        val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = false
 
         val CONFIG = ConfigDef()
         init {
             CONFIG.define(
-                    CONNECTION_URL, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH,
+                    CONNECTION_URL,
+                    ConfigDef.Type.LIST,
+                    ConfigDef.Importance.HIGH,
                     "List of Elasticsearch HTTP connection URLs " +
                             "e.g. ``http://es1:9200,http://es2:9200``"
             )
             CONFIG.define(
-                    TOPIC_INDEX_MAP, ConfigDef.Type.LIST, ConfigDef.Importance.LOW,
+                    TOPIC_INDEX_MAP,
+                    ConfigDef.Type.LIST,
+                    ConfigDef.Importance.LOW,
                     "A map from Kafka topic name to the destination Elasticsearch index, " +
                             "represented as a list of ``topic:index`` pairs."
+            )
+            CONFIG.define(
+                    PROTOBUF_INCLUDE_DEFAULT_VALUES,
+                    ConfigDef.Type.BOOLEAN,
+                    PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT,
+                    ConfigDef.Importance.LOW,
+                    "When option is ``true`` includes all the message fields into json. " +
+                            "Default is ``false``."
             )
         }
     }

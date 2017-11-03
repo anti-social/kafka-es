@@ -53,6 +53,7 @@ dependencies {
     compile "io.searchbox:jest:$jestVersion"
     compile "io.searchbox:jest-common:$jestVersion"
     compile "com.google.protobuf:protobuf-java:$protobufVersion"
+    compile "com.google.protobuf:protobuf-java-util:$protobufVersion"
 
     testCompile("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
     testRuntime("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")

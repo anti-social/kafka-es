@@ -5,7 +5,15 @@ package evo_kafka_es;
 option java_package = "company.evo.kafka";
 option java_outer_classname = "TestMessageProto";
 
+import "indexator/bulk_action.proto";
+import "google/protobuf/timestamp.proto";
+
 message TestMessage {
+    indexator.BulkAction action = 1;
+    TestDocument source = 2;
+}
+
+message TestDocument {
     enum Status {
         ACTIVE = 0;
         DRAFT = 1;
@@ -14,4 +22,7 @@ message TestMessage {
     int64 id = 1;
     string name = 2;
     Status status = 3;
+    repeated int32 tags = 4;
+    google.protobuf.Timestamp date_created = 5;
+    map<string, string> my_map = 6;
 }

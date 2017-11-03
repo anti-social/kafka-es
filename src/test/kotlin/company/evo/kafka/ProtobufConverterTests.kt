@@ -8,21 +8,21 @@ import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.BeforeEach
 
-import company.evo.kafka.TestMessageProto.TestMessage
+import company.evo.kafka.TestMessageProto.TestDocument
 
 
 class ProtobufConverterTests {
     private val converter = ProtobufConverter()
-    private val testMsg = TestMessage.newBuilder()
+    private val testMsg = TestDocument.newBuilder()
             .setId(123)
             .setName("Teo")
-            .setStatus(TestMessage.Status.ACTIVE)
+            .setStatus(TestDocument.Status.ACTIVE)
             .build()
 
     @BeforeEach
     fun configureConverter() {
         converter.configure(
-                mutableMapOf("protobuf.class" to "company.evo.kafka.TestMessageProto\$TestMessage"),
+                mutableMapOf("protobuf.class" to "company.evo.kafka.TestMessageProto\$TestDocument"),
                 false
         )
     }
@@ -67,12 +67,12 @@ class ProtobufConverterTests {
         val schemaAndValue = converter.toConnectData("<test>", data)
         assertThat(schemaAndValue.schema()).isNull()
         val value = schemaAndValue.value()
-        if (value !is TestMessage) {
-            throw AssertionError("$value must be an instance of ${TestMessage::class.java}")
+        if (value !is TestDocument) {
+            throw AssertionError("$value must be an instance of ${TestDocument::class.java}")
         }
         assertThat(value.id).isEqualTo(123L)
         assertThat(value.name).isEqualTo("Teo")
-        assertThat(value.status).isEqualTo(TestMessage.Status.ACTIVE)
+        assertThat(value.status).isEqualTo(TestDocument.Status.ACTIVE)
     }
 
     @Test
@@ -87,10 +87,10 @@ class ProtobufConverterTests {
     @Test
     fun testFromConnectData() {
         val data = converter.fromConnectData("<test>", null, testMsg)
-        val value = TestMessage.parseFrom(data)
+        val value = TestDocument.parseFrom(data)
         assertThat(value.id).isEqualTo(123L)
         assertThat(value.name).isEqualTo("Teo")
-        assertThat(value.status).isEqualTo(TestMessage.Status.ACTIVE)
+        assertThat(value.status).isEqualTo(TestDocument.Status.ACTIVE)
     }
 
     @Test

@@ -42,7 +42,8 @@ class ProtobufConverter : Converter {
             val msg = parser.invoke(null, value)
             return SchemaAndValue(null, msg)
         } catch (e: InvocationTargetException) {
-            throw DataException("Cannot deserialize data", e.targetException)
+            throw DataException("Cannot deserialize data: ${e.targetException}",
+                    e.targetException)
         }
     }
 }

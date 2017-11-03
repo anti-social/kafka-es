@@ -1,11 +1,10 @@
 package company.evo.elasticsearch
 
-import io.searchbox.action.*
+import com.google.protobuf.Message
 import io.searchbox.client.JestClient
 import io.searchbox.client.JestClientFactory
 import io.searchbox.client.config.HttpClientConfig
-import io.searchbox.core.*
-import io.searchbox.params.Parameters
+import io.searchbox.core.Bulk
 import org.apache.http.conn.HttpHostConnectException
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
@@ -22,6 +21,8 @@ import org.slf4j.LoggerFactory
 class ElasticsearchSinkTask : SinkTask() {
     lateinit private var esClient: JestClient
     lateinit private var topicToIndexMap: Map<String, String>
+    private var protobufIncludeDefaultValues: Boolean =
+            Config.PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT
     private val buffer = ArrayList<AnyBulkableAction>()
 
     companion object {
@@ -32,6 +33,8 @@ class ElasticsearchSinkTask : SinkTask() {
         logger.debug("Starting ElasticsearchSinkTask")
         val config = Config(props)
         this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
+        this.protobufIncludeDefaultValues = config.getBoolean(
+                Config.PROTOBUF_INCLUDE_DEFAULT_VALUES)
         val esClientFactory = JestClientFactory()
         esClientFactory.setHttpClientConfig(
                 HttpClientConfig.Builder(config.getList(Config.CONNECTION_URL))
@@ -53,9 +56,13 @@ class ElasticsearchSinkTask : SinkTask() {
             val index = topicToIndexMap[record.topic()]
             val value = record.value()
             try {
-                when (value) {
+                val bulkAction = when (value) {
                     is Map<*,*> -> {
-                        buffer.add(processMapMessage(value, index))
+                        processJsonMessage(value, index)
+                    }
+                    is Message -> {
+                        processProtobufMessage(value, index,
+                                includeDefaultValues = protobufIncludeDefaultValues)
                     }
                     else -> {
                         throw IllegalArgumentException("Expected Map but was: ${value.javaClass}")
@@ -97,109 +104,6 @@ class ElasticsearchSinkTask : SinkTask() {
         } catch (e: HttpHostConnectException) {
             buffer.clear()
             throw RetriableCommitFailedException("$e")
-        }
-    }
-
-    private fun processMapMessage(value: Map<*,*>, index: String?): AnyBulkableAction {
-        val payload = value["payload"]
-        when (payload) {
-            is Map<*,*> -> {
-                val actionData = payload["action"]
-                val sourceData = payload["source"]
-                when {
-                    actionData is Map<*,*> && sourceData is Map<*,*> -> {
-                        val actionBuilder = AnyBulkableAction.Builder(actionData)
-                        val actionEntry = actionData.iterator().next()
-                        when (actionEntry.key) {
-                            "index", "create", "update" -> {
-                                actionBuilder.setSource(sourceData)
-                            }
-                            "delete" -> {}
-                            else -> {
-                                throw IllegalArgumentException(
-                                        "Expected one of action [index, create, update, delete] " +
-                                        "but was [${actionEntry.key}]")
-                            }
-                        }
-                        if (index != null) {
-                            actionBuilder.index(index)
-                        }
-                        return actionBuilder.build()
-                    }
-                    else -> {
-                        throw IllegalArgumentException(
-                                "Expected Map's but were: " +
-                                "[action: ${actionData?.javaClass}, source: ${sourceData?.javaClass}]")
-                    }
-                }
-            }
-            else -> {
-                throw IllegalArgumentException("Expected Map but was: ${payload?.javaClass}")
-            }
-        }
-    }
-}
-
-private class AnyBulkableAction(builder: Builder) :
-        SingleResultAbstractDocumentTargetedAction(builder),
-        BulkableAction<DocumentResult>
-{
-    val opType = builder.opType
-
-    override fun getBulkMethodName(): String = opType
-
-    override fun getRestMethodName(): String {
-        return when (bulkMethodName) {
-            "create" -> { "PUT" }
-            "delete" -> { "DELETE" }
-            else -> { "POST" }
-        }
-    }
-
-    class Builder(action: Map<*,*>) :
-            AbstractDocumentTargetedAction.Builder<AnyBulkableAction, Builder>()
-    {
-        val opType: String
-        var source: Map<*,*>? = null
-
-        init {
-            val actionEntry = action.iterator().next()
-            this.opType = castOrFail(actionEntry.key)
-            val params = castOrFail<Map<*,*>>(actionEntry.value)
-            val index = params["_index"] ?: params["index"]
-            if (index != null) {
-                this.index(castOrFail(index))
-            }
-            val type = params["_type"] ?: params["type"]
-            if (type != null) {
-                this.type(castOrFail(type))
-            }
-            val id = params["_id"] ?: params["id"]
-            if (id != null) {
-                this.id(id.toString())
-            }
-            Parameters.ACCEPTED_IN_BULK.forEach {
-                val paramWithUnderscore = "_$it"
-                val paramValue = params[paramWithUnderscore] ?: params[it]
-                if (paramValue != null) {
-                    setParameter(it, paramValue)
-                }
-            }
-        }
-
-        private inline fun <reified T> castOrFail(obj: Any?): T {
-            return obj as? T ?:
-                    throw IllegalArgumentException(
-                            "Expected ${T::class.java} class but was: ${obj?.javaClass}")
-        }
-
-        fun setSource(source: Map<*,*>): Builder {
-            this.source = source
-            return this
-        }
-
-        override fun build(): AnyBulkableAction {
-            return AnyBulkableAction(this)
         }
     }
 }
