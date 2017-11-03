@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package evo_kafka_es;
+
+option java_package = "company.evo.kafka";
+option java_outer_classname = "TestMessageProto";
+
+message TestMessage {
+    enum Status {
+        ACTIVE = 0;
+        DRAFT = 1;
+        DELETED = 2;
+    }
+    int64 id = 1;
+    string name = 2;
+    Status status = 3;
+}

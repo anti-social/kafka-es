@@ -30,19 +30,13 @@ class ElasticsearchSinkTask : SinkTask() {
 
     override fun start(props: MutableMap<String, String>) {
         logger.debug("Starting ElasticsearchSinkTask")
-        try {
-            val config = Config(props)
-            this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
-            val esClientFactory = JestClientFactory()
-            esClientFactory.setHttpClientConfig(
-                    HttpClientConfig.Builder(config.getList(Config.CONNECTION_URL))
-                            .build())
-            this.esClient = esClientFactory.`object`
-        } catch (e: ConfigException) {
-            throw ConnectException(
-                    "Couldn't start ElasticsearchSinkTask due to configuration error: $e"
-            )
-        }
+        val config = Config(props)
+        this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
+        val esClientFactory = JestClientFactory()
+        esClientFactory.setHttpClientConfig(
+                HttpClientConfig.Builder(config.getList(Config.CONNECTION_URL))
+                        .build())
+        this.esClient = esClientFactory.`object`
     }
 
     override fun stop() {
