@@ -65,9 +65,13 @@ class ElasticsearchSinkTask : SinkTask() {
                                 includeDefaultValues = protobufIncludeDefaultValues)
                     }
                     else -> {
-                        throw IllegalArgumentException("Expected Map but was: ${value.javaClass}")
+                        throw IllegalArgumentException(
+                                "Expected one of [${Map::class.java}, ${Message::class.java}] " +
+                                        "but was: ${value.javaClass}"
+                        )
                     }
                 }
+                buffer.add(bulkAction)
             } catch (e: IllegalArgumentException) {
                 logger.error("Malformed message: $e")
             }

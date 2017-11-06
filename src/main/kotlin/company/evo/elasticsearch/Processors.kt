@@ -1,18 +1,11 @@
 package company.evo.elasticsearch
 
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.stream.JsonWriter
-import com.google.protobuf.*
-import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
-import com.google.protobuf.util.Durations
+import com.google.protobuf.Message
+import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
-import com.google.protobuf.util.Timestamps
-import company.evo.kafka.castOrFail
 
-import company.evo.kafka.elasticsearch.BulkActionProto
-import java.io.StringWriter
-import java.util.*
+import company.evo.kafka.castOrFail
+import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
 
 
 internal fun processJsonMessage(value: Map<*, *>, index: String?): AnyBulkableAction {
@@ -43,31 +36,38 @@ internal fun processJsonMessage(value: Map<*, *>, index: String?): AnyBulkableAc
  }
 
 internal fun processProtobufMessage(
-        message: Message, index: String?, includeDefaultValues: Boolean = false
+        message: MessageOrBuilder, index: String?, includeDefaultValues: Boolean = false
 ): AnyBulkableAction
 {
     val descriptor = message.descriptorForType
     val actionField = descriptor.findFieldByName("action") ?:
-            throw IllegalArgumentException("Message has no action field")
+            throw IllegalArgumentException("Message must contain [action] field")
     val sourceField = descriptor.findFieldByName("source") ?:
-            throw IllegalArgumentException("Message has no source field")
-    val action = message.getField(actionField) as? BulkActionProto.BulkAction ?:
+            throw IllegalArgumentException("Message must contain [source] field")
+    val action = message.getField(actionField) as? BulkAction ?:
             throw IllegalArgumentException(
-                    "Action must be an instance of the " +
-                            "company.evo.kafka.elasticsearch.BulkActionProto\$BulkAction class")
+                    "[action] field must be an instance of the ${BulkAction::class.java}")
     val source = message.getField(sourceField) as? Message ?:
             throw IllegalArgumentException(
-                    "Source must be an instance of the com.google.protobuf.Message class")
+                    "[source] field must be an instance of the ${Message::class.java}")
     val actionBuilder = AnyBulkableAction.Builder(action)
     if (index != null && index.isNotEmpty()) {
         actionBuilder.index(index)
     }
-    var jsonPrinter = JsonFormat.printer()
-            .omittingInsignificantWhitespace()
-            .preservingProtoFieldNames()
-    if (includeDefaultValues) {
-        jsonPrinter = jsonPrinter.includingDefaultValueFields()
+    when (action.opType) {
+        BulkAction.OpType.INDEX, BulkAction.OpType.UPDATE, BulkAction.OpType.CREATE -> {
+            var jsonPrinter = JsonFormat.printer()
+                    .omittingInsignificantWhitespace()
+                    .preservingProtoFieldNames()
+            if (includeDefaultValues) {
+                jsonPrinter = jsonPrinter.includingDefaultValueFields()
+            }
+            actionBuilder.setSource(jsonPrinter.print(source))
+        }
+        BulkAction.OpType.DELETE -> {}
+        BulkAction.OpType.UNRECOGNIZED, null -> {
+            throw IllegalArgumentException("Unrecognized operation type for bulk action")
+        }
     }
-    actionBuilder.setSource(jsonPrinter.print(source))
     return actionBuilder.build()
 }

@@ -3,7 +3,7 @@ syntax = "proto3";
 package evo_kafka_es;
 
 option java_package = "company.evo.kafka";
-option java_outer_classname = "TestMessageProto";
+option java_outer_classname = "TestProto";
 
 import "indexator/bulk_action.proto";
 import "google/protobuf/timestamp.proto";
@@ -15,24 +15,80 @@ message TestMessage {
 }
 
 message TestDocument {
-    enum Status {
-        ACTIVE = 0;
-        DRAFT = 1;
-        DELETED = 2;
-    }
-    int64 id = 1;
+    int32 id = 1;
     string name = 2;
-    Status status = 3;
-    repeated int32 tags = 4;
-    google.protobuf.Timestamp date_created = 5;
-    map<string, string> my_map = 6;
+    int64 counter = 3;
+}
+
+message UpdateMessage {
+    message Source {
+        oneof doc_or_script {
+            TestDocument doc = 1;
+            indexator.Script script = 3;
+        }
+        bool doc_as_upsert = 2;
+        TestDocument upsert = 4;
+    }
+    indexator.BulkAction action = 1;
+    Source source = 2;
+}
+
+message MissingActionMessage {
+    TestDocument source = 1;
+}
+
+message InvalidActionMessage {
+    string action = 1;
+    TestDocument source = 2;
 }
 
 message MissingSourceMessage {
     indexator.BulkAction action = 1;
 }
 
-message TestInt32ValueMessage {
+message InvalidSourceMessage {
+    indexator.BulkAction action = 1;
+    string source = 2;
+}
+
+message EnumMessage {
+    enum Status {
+        ACTIVE = 0;
+        DRAFT = 1;
+        DELETED = 2;
+    }
+    message Source {
+        Status status = 1;
+    }
+    indexator.BulkAction action = 1;
+    Source source = 2;
+}
+
+message RepeatedMessage {
+    message Source {
+        repeated int32 delivery_regions = 1;
+    }
+    indexator.BulkAction action = 1;
+    Source source = 2;
+}
+
+message MapMessage {
+    message Source {
+        map<string, string> my_map = 1;
+    }
+    indexator.BulkAction action = 1;
+    Source source = 2;
+}
+
+message DatetimeMessage {
+    message Source {
+        google.protobuf.Timestamp datetime = 1;
+    }
+    indexator.BulkAction action = 1;
+    Source source = 2;
+}
+
+message Int32ValueMessage {
     message Source {
         google.protobuf.Int32Value nullable_int = 1;
     }
