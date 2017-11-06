@@ -5,6 +5,8 @@ package indexator;
 option java_package = "company.evo.kafka.elasticsearch";
 option java_outer_classname = "BulkActionProto";
 
+import "google/protobuf/struct.proto";
+
 message BulkAction {
     enum OpType {
         INDEX = 0;
@@ -22,4 +24,14 @@ message BulkAction {
     string version_type = 8;
     // Only valid for UPDATE action
     int32 retry_on_conflict = 9;
+}
+
+message Script {
+    string lang = 1;
+    oneof script {
+        string source = 2;
+        string id = 3;
+        string file = 4;
+    }
+    google.protobuf.Struct params = 5;
 }

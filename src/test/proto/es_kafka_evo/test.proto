@@ -7,6 +7,7 @@ option java_outer_classname = "TestMessageProto";
 
 import "indexator/bulk_action.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 
 message TestMessage {
     indexator.BulkAction action = 1;
@@ -25,4 +26,16 @@ message TestDocument {
     repeated int32 tags = 4;
     google.protobuf.Timestamp date_created = 5;
     map<string, string> my_map = 6;
+}
+
+message MissingSourceMessage {
+    indexator.BulkAction action = 1;
+}
+
+message TestInt32ValueMessage {
+    message Source {
+        google.protobuf.Int32Value nullable_int = 1;
+    }
+    indexator.BulkAction action = 1;
+    Source source = 2;
 }
