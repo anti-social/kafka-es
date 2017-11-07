@@ -5,6 +5,7 @@ import io.searchbox.client.JestClient
 import io.searchbox.client.JestClientFactory
 import io.searchbox.client.config.HttpClientConfig
 import io.searchbox.core.Bulk
+import io.searchbox.core.BulkResult
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.consumer.RetriableCommitFailedException
@@ -29,10 +30,6 @@ class ElasticsearchSinkTask() : SinkTask() {
         val esClientFactory = JestClientFactory()
 
         // TODO(Review all the exceptions)
-        val UNRECOVERABLE_ES_ERRORS = setOf(
-                "index_closed_exception",
-                "index_not_found_exception"
-        )
         val NON_RETRIABLE_ES_ERRORS = setOf(
                 "elasticsearch_parse_exception",
                 "parsing_exception",
@@ -113,20 +110,25 @@ class ElasticsearchSinkTask() : SinkTask() {
         try {
             val bulkResult = esClient.execute(bulkRequest)
             if (!bulkResult.isSucceeded) {
-                var retriableErrors = false
-                var errorMsg = ""
+                val failedItems = arrayListOf<BulkResult.BulkResultItem>()
+                val retriableItems = arrayListOf<BulkResult.BulkResultItem>()
                 // TODO(Fix Jest to correctly process missing id (for create operation))
                 bulkResult.failedItems.forEach {
                     if (it.errorType in NON_RETRIABLE_ES_ERRORS) {
-                        errorMsg += "\t${it.id}: ${it.error}\n"
+                        failedItems.add(it)
                     } else {
-                        retriableErrors = true
+                        retriableItems.add(it)
                     }
                 }
-                if (retriableErrors) {
+                if (failedItems.isNotEmpty()) {
+                    // TODO(Save non retriable documents into dedicated topic)
+                    logger.error(formatFailedItems(failedItems))
+                }
+                if (retriableItems.isNotEmpty()) {
+                    // FIXME(Should we preserve actions?)
                     context.timeout(Config.RETRY_TIMEOUT_DEFAULT)
                     throw RetriableCommitFailedException(
-                            "Some documents weren't indexed:\n${errorMsg}"
+                            formatFailedItems(retriableItems)
                     )
                 }
             }
@@ -136,6 +138,12 @@ class ElasticsearchSinkTask() : SinkTask() {
         } finally {
             actions.clear()
         }
+    }
+
+    private fun formatFailedItems(items: Collection<BulkResult.BulkResultItem>): String {
+        return "Some documents weren't indexed:\n" +
+                items.map { "\t[${it.index}, ${it.type} ${it.id}]: ${it.errorType} - ${it.errorReason}" }
+                        .joinToString("\n")
     }
 
     private fun handleException(exc: IOException) {
