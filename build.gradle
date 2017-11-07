@@ -69,5 +69,5 @@ protobuf {
 sourceSets.main.java.srcDirs += 'build/generated/source/proto/main/java'
 sourceSets.test.java.srcDirs += 'build/generated/source/proto/test/java'
 
-compileKotlin.dependsOn ':generateProto'
-compileTestKotlin.dependsOn ':generateTestProto'
+compileKotlin.dependsOn 'generateProto'
+compileTestKotlin.dependsOn 'generateTestProto'
