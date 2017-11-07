@@ -10,23 +10,38 @@ import org.apache.http.conn.HttpHostConnectException
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.consumer.RetriableCommitFailedException
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.config.ConfigException
-import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
 
 
-class ElasticsearchSinkTask : SinkTask() {
+class ElasticsearchSinkTask() : SinkTask() {
+    private var testEsClient: JestClient? = null
     lateinit private var esClient: JestClient
     lateinit private var topicToIndexMap: Map<String, String>
     private var protobufIncludeDefaultValues: Boolean =
             Config.PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT
-    private val buffer = ArrayList<AnyBulkableAction>()
+    private val actions = ArrayList<AnyBulkableAction>()
 
     companion object {
         val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
+        val esClientFactory = JestClientFactory()
+
+        // TODO(Review all the exceptions)
+        val UNRECOVERABLE_ES_ERRORS = setOf(
+                "index_closed_exception",
+                "index_not_found_exception"
+        )
+        val NON_RETRIABLE_ES_ERRORS = setOf(
+                "elasticsearch_parse_exception",
+                "parsing_exception",
+                "routing_missing_exception"
+        )
+    }
+
+    internal constructor(esClient: JestClient) : this() {
+        this.testEsClient = esClient
     }
 
     override fun start(props: MutableMap<String, String>) {
@@ -35,15 +50,21 @@ class ElasticsearchSinkTask : SinkTask() {
         this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
         this.protobufIncludeDefaultValues = config.getBoolean(
                 Config.PROTOBUF_INCLUDE_DEFAULT_VALUES)
-        val esClientFactory = JestClientFactory()
-        esClientFactory.setHttpClientConfig(
-                HttpClientConfig.Builder(config.getList(Config.CONNECTION_URL))
-                        .build())
-        this.esClient = esClientFactory.`object`
+        val testEsClient = this.testEsClient
+        if (testEsClient != null) {
+            this.esClient = testEsClient
+        } else {
+            esClientFactory
+                    .setHttpClientConfig(
+                            HttpClientConfig.Builder(config.getList(Config.CONNECTION_URL))
+                                    .build())
+            this.esClient = esClientFactory.`object`
+        }
     }
 
     override fun stop() {
         logger.debug("Stopping ElasticsearchSinkTask")
+        actions.clear()
         esClient.close()
     }
 
@@ -71,7 +92,7 @@ class ElasticsearchSinkTask : SinkTask() {
                         )
                     }
                 }
-                buffer.add(bulkAction)
+                actions.add(bulkAction)
             } catch (e: IllegalArgumentException) {
                 logger.error("Malformed message: $e")
             }
@@ -79,35 +100,41 @@ class ElasticsearchSinkTask : SinkTask() {
     }
 
     override fun flush(currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?) {
-        if (buffer.isEmpty()) {
+        if (actions.isEmpty()) {
             super.flush(currentOffsets)
             return
         }
         val bulkRequest = Bulk.Builder()
-                .defaultIndex("test")
-                .addAction(buffer)
+                .addAction(actions)
                 .build()
         try {
             val bulkResult = esClient.execute(bulkRequest)
             if (!bulkResult.isSucceeded) {
+                var retriableErrors = false
                 var errorMsg = ""
-                // TODO(Fix Jest to correctly process missing id)
+                // TODO(Fix Jest to correctly process missing id (for create operation))
                 bulkResult.failedItems.forEach {
-                    if (it.error != null) {
+                    if (it.errorType in NON_RETRIABLE_ES_ERRORS) {
                         errorMsg += "\t${it.id}: ${it.error}\n"
-                        // TODO(Parse error message and determine possibility of retry)
+                    } else {
+                        retriableErrors = true
                     }
                 }
-                buffer.clear()
-                throw RetriableCommitFailedException(
-                        "Some documents weren't indexed:\n${errorMsg}"
-                )
+                actions.clear()
+                if (retriableErrors) {
+                    context.timeout(Config.RETRY_TIMEOUT_DEFAULT)
+                    throw RetriableCommitFailedException(
+                            "Some documents weren't indexed:\n${errorMsg}"
+                    )
+                }
             }
-            buffer.clear()
+            actions.clear()
             super.flush(currentOffsets)
         } catch (e: HttpHostConnectException) {
-            buffer.clear()
-            throw RetriableCommitFailedException("$e")
+            // TODO(Pause records consuming when elasticsearch is unavailable)
+            // context.pause()
+            actions.clear()
+            throw RetriableCommitFailedException("Could not connect to elasticsearch", e)
         }
     }
 }

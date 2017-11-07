@@ -46,6 +46,8 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val TOPIC_INDEX_MAP = "topic.index.map"
         val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include_default_values"
         val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = false
+        // TODO(Make configurable timeout policy)
+        val RETRY_TIMEOUT_DEFAULT = 30000L
 
         val CONFIG = ConfigDef()
         init {
