@@ -44,6 +44,8 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
     companion object {
         val CONNECTION_URL = "connection.url"
         val TOPIC_INDEX_MAP = "topic.index.map"
+        val REQUEST_TIMEOUT = "request.timeout.ms"
+        val REQUEST_TIMEOUT_DEFAULT = 10000
         val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include_default_values"
         val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = false
         // TODO(Make configurable timeout policy)
@@ -61,17 +63,27 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
             CONFIG.define(
                     TOPIC_INDEX_MAP,
                     ConfigDef.Type.LIST,
-                    ConfigDef.Importance.LOW,
+                    ConfigDef.Importance.HIGH,
                     "A map from Kafka topic name to the destination Elasticsearch index, " +
                             "represented as a list of ``topic:index`` pairs."
+            )
+            CONFIG.define(
+                    REQUEST_TIMEOUT,
+                    ConfigDef.Type.INT,
+                    REQUEST_TIMEOUT_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    """Timeout for Elasticsearch requests.
+                        | Default is ``${REQUEST_TIMEOUT_DEFAULT}``.
+                        |""".trimMargin()
             )
             CONFIG.define(
                     PROTOBUF_INCLUDE_DEFAULT_VALUES,
                     ConfigDef.Type.BOOLEAN,
                     PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT,
                     ConfigDef.Importance.LOW,
-                    "When option is ``true`` includes all the message fields into json. " +
-                            "Default is ``false``."
+                    """When option is ``true`` includes all the message fields into json.
+                        | Default is ``${PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT}``.
+                        |""".trimMargin()
             )
         }
     }

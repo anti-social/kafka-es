@@ -5,7 +5,6 @@ import io.searchbox.client.JestClient
 import io.searchbox.client.JestClientFactory
 import io.searchbox.client.config.HttpClientConfig
 import io.searchbox.core.Bulk
-import org.apache.http.conn.HttpHostConnectException
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.consumer.RetriableCommitFailedException
@@ -14,6 +13,7 @@ import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
+import java.io.IOException
 
 
 class ElasticsearchSinkTask() : SinkTask() {
@@ -54,9 +54,12 @@ class ElasticsearchSinkTask() : SinkTask() {
         if (testEsClient != null) {
             this.esClient = testEsClient
         } else {
+            val requestTimeout = config.getInt(Config.REQUEST_TIMEOUT)
             esClientFactory
                     .setHttpClientConfig(
                             HttpClientConfig.Builder(config.getList(Config.CONNECTION_URL))
+                                    .connTimeout(requestTimeout)
+                                    .readTimeout(requestTimeout)
                                     .build())
             this.esClient = esClientFactory.`object`
         }
@@ -120,7 +123,6 @@ class ElasticsearchSinkTask() : SinkTask() {
                         retriableErrors = true
                     }
                 }
-                actions.clear()
                 if (retriableErrors) {
                     context.timeout(Config.RETRY_TIMEOUT_DEFAULT)
                     throw RetriableCommitFailedException(
@@ -128,13 +130,20 @@ class ElasticsearchSinkTask() : SinkTask() {
                     )
                 }
             }
-            actions.clear()
             super.flush(currentOffsets)
-        } catch (e: HttpHostConnectException) {
-            // TODO(Pause records consuming when elasticsearch is unavailable)
-            // context.pause()
+        } catch (e: IOException) {
+            handleException(e)
+        } finally {
             actions.clear()
-            throw RetriableCommitFailedException("Could not connect to elasticsearch", e)
         }
+    }
+
+    private fun handleException(exc: IOException) {
+        logger.error("Error when sending request to Elasticsearch: $exc")
+        // TODO(Pause records consuming when elasticsearch is unavailable)
+        // context.pause()
+        // TODO(Start a heartbeat thread to resume consuming when elasticsearch will be available)
+        // context.resume()
+        throw RetriableCommitFailedException("Could not connect to elasticsearch", exc)
     }
 }
