@@ -8,7 +8,7 @@ import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.BeforeEach
 
-import company.evo.kafka.TestMessageProto.TestDocument
+import company.evo.kafka.TestProto.TestDocument
 
 
 class ProtobufConverterTests {
@@ -16,13 +16,12 @@ class ProtobufConverterTests {
     private val testMsg = TestDocument.newBuilder()
             .setId(123)
             .setName("Teo")
-            .setStatus(TestDocument.Status.ACTIVE)
             .build()
 
     @BeforeEach
     fun configureConverter() {
         converter.configure(
-                mutableMapOf("protobuf.class" to "company.evo.kafka.TestMessageProto\$TestDocument"),
+                mutableMapOf("protobuf.class" to "company.evo.kafka.TestProto\$TestDocument"),
                 false
         )
     }
@@ -70,9 +69,8 @@ class ProtobufConverterTests {
         if (value !is TestDocument) {
             throw AssertionError("$value must be an instance of ${TestDocument::class.java}")
         }
-        assertThat(value.id).isEqualTo(123L)
+        assertThat(value.id).isEqualTo(123)
         assertThat(value.name).isEqualTo("Teo")
-        assertThat(value.status).isEqualTo(TestDocument.Status.ACTIVE)
     }
 
     @Test
@@ -88,9 +86,8 @@ class ProtobufConverterTests {
     fun testFromConnectData() {
         val data = converter.fromConnectData("<test>", null, testMsg)
         val value = TestDocument.parseFrom(data)
-        assertThat(value.id).isEqualTo(123L)
+        assertThat(value.id).isEqualTo(123)
         assertThat(value.name).isEqualTo("Teo")
-        assertThat(value.status).isEqualTo(TestDocument.Status.ACTIVE)
     }
 
     @Test
