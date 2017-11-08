@@ -50,6 +50,7 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = false
         // TODO(Make configurable timeout policy)
         val RETRY_TIMEOUT_DEFAULT = 30000L
+        val MAX_RETRY_INTERVAL_DEFAULT = 300 * 1000L
 
         val CONFIG = ConfigDef()
         init {
