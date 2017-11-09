@@ -1,22 +1,23 @@
 package company.evo.elasticsearch
 
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.BlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+
 import com.google.protobuf.Message
+
 import io.searchbox.client.JestClient
 import io.searchbox.client.JestClientFactory
 import io.searchbox.client.config.HttpClientConfig
-import io.searchbox.core.Bulk
-import io.searchbox.core.BulkResult
-import io.searchbox.core.Ping
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
-import java.io.IOException
-import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.concurrent.thread
 
 
 class ElasticsearchSinkTask() : SinkTask() {
@@ -24,28 +25,25 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     lateinit private var esClient: JestClient
     lateinit private var topicToIndexMap: Map<String, String>
+    val bulkSize = 500
     private var protobufIncludeDefaultValues: Boolean =
             Config.PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT
 
-    lateinit private var doggedThread: Thread
-    private val doggedThreadMonitor = Object()
-    private var workingDog = AtomicBoolean(false)
+    lateinit private var sinkThread: Thread
+    lateinit private var sinkQueue: BlockingQueue<Collection<AnyBulkableAction>>
+    lateinit private var sinkConfirmationQueue: BlockingQueue<String>
     lateinit private var heartbeatThread: Thread
-    private val heartbeatThreadMonitor = Object()
-    private val workingHeartbeat = AtomicBoolean(false)
+    private val waitingElastic = AtomicBoolean(false)
+
     private var isPaused = false
-    private val retriableActions = ArrayList<AnyBulkableAction>()
+    private var requestCounter = 0
+    private var actions = ArrayList<AnyBulkableAction>()
 
     companion object {
-        val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
-        val esClientFactory = JestClientFactory()
+        private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
+        private val esClientFactory = JestClientFactory()
 
-        // TODO(Review all the exceptions)
-        val NON_RETRIABLE_ES_ERRORS = setOf(
-                "elasticsearch_parse_exception",
-                "parsing_exception",
-                "routing_missing_exception"
-        )
+        private val EMPTY_OFFSETS: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap()
     }
 
     internal constructor(esClient: JestClient) : this() {
@@ -73,61 +71,28 @@ class ElasticsearchSinkTask() : SinkTask() {
                                     .build())
             this.esClient = esClientFactory.`object`
         }
-        doggedThread = thread(name = "elastic-dogging") {
-            synchronized(doggedThreadMonitor) {
-                while (!Thread.interrupted()) {
-                    try {
-                        doggedThreadMonitor.wait()
-                        var retryInterval = 1000L
-                        while (true) {
-                            Thread.sleep(retryInterval)
-                            synchronized(retriableActions) actions@ {
-                                retriableActions.retainAll(sendToElastic(retriableActions))
-                                if (retriableActions.isEmpty()) {
-                                    workingDog.set(false)
-                                    return@actions
-                                }
-                            }
-                            // exponential retry interval
-                            retryInterval *= retryInterval
-                            retryInterval = minOf(retryInterval, maxRetryInterval)
-                        }
-                    } catch (e: InterruptedException) {}
-                }
-            }
-        }
-        heartbeatThread = thread(name = "elastic-heartbeat") {
-            synchronized(heartbeatThreadMonitor) {
-                while (!Thread.interrupted()) {
-                    try {
-                        heartbeatThreadMonitor.wait()
-                        while (true) {
-                            Thread.sleep(5000)
-                            try {
-                                logger.info("Pinging elasticsearch: ${esUrl}")
-                                // TODO(Check status for sink indexes)
-                                val res = esClient.execute(Ping.Builder().build())
-                                if (res.isSucceeded) {
-                                    workingHeartbeat.set(false)
-                                    break
-                                }
-                            } catch (e: IOException) {
-                                continue
-                            }
-                        }
-                    } catch (e: InterruptedException) {}
-                }
-            }
-        }
+        val heartbeatThreadMonitor = Object()
+        heartbeatThread = Thread(
+                Heartbeat(esClient, 5000, heartbeatThreadMonitor, waitingElastic),
+                "elastic-heartbeat"
+        )
+        heartbeatThread.start()
+        sinkQueue = ArrayBlockingQueue(20)
+        sinkConfirmationQueue = ArrayBlockingQueue(20)
+        sinkThread = Thread(
+                Sink(esClient, sinkQueue, sinkConfirmationQueue, heartbeatThreadMonitor, waitingElastic),
+                "elastic-sink"
+        )
+        sinkThread.start()
     }
 
     override fun stop() {
         logger.debug("Stopping ElasticsearchSinkTask")
-        doggedThread.interrupt()
+        sinkThread.interrupt()
         heartbeatThread.interrupt()
+        waitingElastic.set(false)
         isPaused = false
-        workingDog.set(false)
-        workingHeartbeat.set(false)
+        requestCounter = 0
         esClient.close()
     }
 
@@ -137,15 +102,11 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     override fun put(records: MutableCollection<SinkRecord>) {
         logger.info("Recieved ${records.size} records")
-        val actions = ArrayList<AnyBulkableAction>()
         if (isPaused) {
-            if (workingDog.get() || workingHeartbeat.get()) {
+            if (waitingElastic.get()) {
                 return
             } else {
                 resume()
-                synchronized(retriableActions) {
-                    actions.addAll(retriableActions)
-                }
             }
         }
         records.forEach { record ->
@@ -169,34 +130,24 @@ class ElasticsearchSinkTask() : SinkTask() {
                     }
                 }
                 actions.add(bulkAction)
+                if (actions.size >= bulkSize) {
+                    send(actions)
+                    actions.clear()
+                }
             } catch (e: IllegalArgumentException) {
                 logger.error("Malformed message: $e")
             }
         }
+    }
+
+    private fun send(actions: Collection<AnyBulkableAction>) {
         try {
-            val retryActions = sendToElastic(actions)
-            if (retryActions.isNotEmpty()) {
-                pause()
-                workingDog.set(true)
-                synchronized(retriableActions) {
-                    retriableActions.addAll(retryActions)
-                }
-                synchronized(doggedThreadMonitor) {
-                    doggedThreadMonitor.notifyAll()
-                }
+            if (sinkQueue.offer(actions.toList(), 5000, TimeUnit.MILLISECONDS)) {
+                requestCounter += 1
+                logger.info("Put ${actions.size} actions into queue")
             }
-        } catch (e: IOException) {
-            logger.error("Error when sending request to Elasticsearch: $e")
-            pause()
-            workingHeartbeat.set(true)
-            synchronized(retriableActions) {
-                retriableActions.addAll(actions)
-            }
-            synchronized(heartbeatThreadMonitor) {
-                heartbeatThreadMonitor.notifyAll()
-            }
-        } finally {
-            actions.clear()
+        } catch (e: InterruptedException) {
+            throw ConnectException(e)
         }
     }
 
@@ -204,8 +155,22 @@ class ElasticsearchSinkTask() : SinkTask() {
             currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
     ): MutableMap<TopicPartition, OffsetAndMetadata>
     {
+        logger.info("Pre commit: waiting $requestCounter requests to be finished")
         if (isPaused) {
-            return HashMap()
+            return EMPTY_OFFSETS
+        }
+        if (actions.isNotEmpty()) {
+            send(actions)
+            actions.clear()
+        }
+        while (requestCounter > 0) {
+            val confirm = sinkConfirmationQueue.poll(5000, TimeUnit.MILLISECONDS)
+            if (confirm == null) {
+                pause()
+                return EMPTY_OFFSETS
+            } else {
+                requestCounter -= 1
+            }
         }
         return super.preCommit(currentOffsets)
     }
@@ -213,63 +178,15 @@ class ElasticsearchSinkTask() : SinkTask() {
     override fun flush(currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?) {
     }
 
-    private fun sendToElastic(actions: Collection<AnyBulkableAction>)
-            : Collection<AnyBulkableAction>
-    {
-        if (actions.isEmpty()) {
-            return emptyList()
-        }
-        logger.info("Sending ${actions.size} actions to elasticsearch")
-        val bulkRequest = Bulk.Builder()
-                .addAction(actions)
-                .build()
-        val bulkResult = esClient.execute(bulkRequest)
-        val retriableActions = ArrayList<AnyBulkableAction>()
-        if (!bulkResult.isSucceeded) {
-            val failedItems = ArrayList<BulkResult.BulkResultItem>()
-            val retriableItems = ArrayList<BulkResult.BulkResultItem>()
-            // TODO(Fix Jest to correctly process missing id (for create operation))
-            bulkResult.items.zip(actions).forEach { (item, action) ->
-                if (item.error == null) return@forEach
-                if (item.errorType in NON_RETRIABLE_ES_ERRORS) {
-                    failedItems.add(item)
-                } else {
-                    retriableItems.add(item)
-                    retriableActions.add(action)
-                }
-            }
-            if (failedItems.isNotEmpty()) {
-                // TODO(Save non retriable documents into dedicated topic)
-                logger.error(formatFailedItems(
-                        "Some documents weren't indexed, skipping them",
-                        failedItems
-                ))
-            }
-            if (retriableItems.isNotEmpty()) {
-                logger.error(formatFailedItems(
-                        "Some documents weren't indexed, retrying them",
-                        retriableItems))
-            }
-        }
-        return retriableActions
-    }
-
     private fun pause() {
+        logger.info("Pausing consuming new records")
         context.pause(*context.assignment().toTypedArray())
         isPaused = true
     }
 
     private fun resume() {
+        logger.info("Resuming consuming new records")
         context.resume(*context.assignment().toTypedArray())
         isPaused = false
-    }
-
-    private fun formatFailedItems(
-            message: String,
-            items: Collection<BulkResult.BulkResultItem>): String
-    {
-        return "$message:\n" +
-                items.map { "\t${it.errorType}: ${it.errorReason}" }
-                        .joinToString("\n")
     }
 }
