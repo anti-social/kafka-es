@@ -44,13 +44,22 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
     companion object {
         val CONNECTION_URL = "connection.url"
         val TOPIC_INDEX_MAP = "topic.index.map"
+        val BULK_SIZE = "bulk.size"
+        val BULK_SIZE_DEFAULT = 1000
         val REQUEST_TIMEOUT = "request.timeout.ms"
         val REQUEST_TIMEOUT_DEFAULT = 10000
-        val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include_default_values"
+        val MAX_IN_FLIGHT_REQUESTS = "max.in.flight.requests"
+        val MAX_IN_FLIGHT_REQUESTS_DEFAULT = 1
+        val QUEUE_SIZE = "queue.size"
+        val QUEUE_SIZE_DEFAULT = 10
+        val HEARTBEAT_INTERVAL = "heartbeat.interval"
+        val HEARTBEAT_INTERVAL_DEFAULT = 5
+        val RETRY_INTERVAL = "retry.interval"
+        val RETRY_INTERVAL_DEFAULT = 30
+        val MAX_RETRY_INTERVAL = "max.retry.interval"
+        val MAX_RETRY_INTERVAL_DEFAULT = 3600
+        val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include.default.values"
         val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = false
-        // TODO(Make configurable timeout policy)
-        val RETRY_TIMEOUT_DEFAULT = 30000L
-        val MAX_RETRY_INTERVAL_DEFAULT = 300 * 1000L
 
         val CONFIG = ConfigDef()
         init {
@@ -69,22 +78,61 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                             "represented as a list of ``topic:index`` pairs."
             )
             CONFIG.define(
+                    BULK_SIZE,
+                    ConfigDef.Type.INT,
+                    BULK_SIZE_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    "The number of actions in the bulk request."
+            )
+            CONFIG.define(
                     REQUEST_TIMEOUT,
                     ConfigDef.Type.INT,
                     REQUEST_TIMEOUT_DEFAULT,
                     ConfigDef.Importance.MEDIUM,
-                    """Timeout for Elasticsearch requests.
-                        | Default is ``${REQUEST_TIMEOUT_DEFAULT}``.
-                        |""".trimMargin()
+                    "Timeout for Elasticsearch requests."
+            )
+            CONFIG.define(
+                    MAX_IN_FLIGHT_REQUESTS,
+                    ConfigDef.Type.INT,
+                    MAX_IN_FLIGHT_REQUESTS_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    "Maximum number of the concurrent requests to Elasticsearch."
+            )
+            CONFIG.define(
+                    QUEUE_SIZE,
+                    ConfigDef.Type.INT,
+                    QUEUE_SIZE_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    "Queue size for bulk requests."
+            )
+            CONFIG.define(
+                    HEARTBEAT_INTERVAL,
+                    ConfigDef.Type.INT,
+                    HEARTBEAT_INTERVAL_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    "Interval between heartbeets when Elasticsearch is unavailable."
+            )
+            CONFIG.define(
+                    RETRY_INTERVAL,
+                    ConfigDef.Type.INT,
+                    RETRY_INTERVAL_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    "Interval between retries when some actions was rejected." +
+                            "These retries are exponentially increased."
+            )
+            CONFIG.define(
+                    MAX_RETRY_INTERVAL,
+                    ConfigDef.Type.INT,
+                    MAX_RETRY_INTERVAL_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    "Maximum interval between retries in seconds."
             )
             CONFIG.define(
                     PROTOBUF_INCLUDE_DEFAULT_VALUES,
                     ConfigDef.Type.BOOLEAN,
                     PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT,
                     ConfigDef.Importance.LOW,
-                    """When option is ``true`` includes all the message fields into json.
-                        | Default is ``${PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT}``.
-                        |""".trimMargin()
+                    "When ``true`` includes all the message fields into json."
             )
         }
     }

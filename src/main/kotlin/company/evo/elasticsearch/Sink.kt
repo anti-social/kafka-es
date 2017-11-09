@@ -1,25 +1,42 @@
 package company.evo.elasticsearch
 
+import java.io.IOException
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.BlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+
+import kotlin.concurrent.thread
 
 import io.searchbox.client.JestClient
 import io.searchbox.core.Bulk
 import io.searchbox.core.BulkResult
-
-import java.io.IOException
-import java.util.concurrent.atomic.AtomicBoolean
 
 import org.slf4j.LoggerFactory
 
 
 internal class Sink(
         private val esClient: JestClient,
-        private val queue: BlockingQueue<Collection<AnyBulkableAction>>,
-        private val confirmationQueue: BlockingQueue<String>,
-        private val heartbeatMonitor: Object,
-        private val waitingElastic: AtomicBoolean
-) : Runnable
+        private val bulkSize: Int = Config.BULK_SIZE_DEFAULT,
+        queueSize: Int = Config.QUEUE_SIZE_DEFAULT,
+        private val queueTimeout: Int = Config.REQUEST_TIMEOUT_DEFAULT,
+        maxInFlightRequests: Int = Config.MAX_IN_FLIGHT_REQUESTS_DEFAULT,
+        heartbeatInterval: Int = Config.HEARTBEAT_INTERVAL_DEFAULT,
+        private val retryInterval: Int = Config.RETRY_INTERVAL_DEFAULT,
+        private val maxRetryInterval: Int = Config.MAX_RETRY_INTERVAL_DEFAULT
+)
 {
+    private val queue: BlockingQueue<Collection<AnyBulkableAction>>
+    private val confirmationQueue: BlockingQueue<String>
+    private val sinkThreads: Collection<Thread>
+    private val heartbeatThread: Thread
+    private val heartbeatMonitor = Object()
+    private val waitingElastic = AtomicBoolean(false)
+
+    private val actions = ArrayList<AnyBulkableAction>()
+    private var requestCounter = 0
+
+
     companion object {
         val logger = LoggerFactory.getLogger(Sink::class.java)
 
@@ -31,13 +48,67 @@ internal class Sink(
         )
     }
 
-    override fun run() {
-        while (!Thread.interrupted()) {
-            try {
-                val actions = queue.take()
-                guaranteedSend(actions)
-                confirmationQueue.put("ok")
-            } catch (e: InterruptedException) {}
+    init {
+        heartbeatThread = Thread(
+                Heartbeat(esClient, heartbeatInterval, heartbeatMonitor, waitingElastic),
+                "elastic-heartbeat"
+        )
+        heartbeatThread.start()
+        queue = ArrayBlockingQueue(queueSize)
+        confirmationQueue = ArrayBlockingQueue(queueSize)
+        // TODO(Use ThreadPoolExecutor)
+        sinkThreads = (0 until maxInFlightRequests).map {
+            thread(name = "elastic-sink-$it") {
+                while (!Thread.interrupted()) {
+                    try {
+                        val actions = queue.take()
+                        guaranteedSend(actions)
+                        confirmationQueue.put("ok")
+                    } catch (e: InterruptedException) {}
+                }
+            }
+        }
+    }
+
+    fun stop () {
+        heartbeatThread.interrupt()
+        sinkThreads.forEach { it.interrupt() }
+        waitingElastic.set(false)
+        actions.clear()
+        requestCounter = 0
+    }
+
+    fun flush(timeoutMs: Int): Boolean {
+        if (actions.isNotEmpty()) {
+            send(actions)
+            actions.clear()
+        }
+        logger.info("Pre commit: waiting $requestCounter requests to be finished")
+        while (requestCounter > 0) {
+            val confirm = confirmationQueue.poll(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            if (confirm == null) {
+                return false
+            } else {
+                requestCounter -= 1
+            }
+        }
+        return true
+    }
+
+    fun isWaitingElastic(): Boolean = waitingElastic.get()
+
+    fun put(action: AnyBulkableAction) {
+        actions.add(action)
+        if (actions.size >= bulkSize) {
+            send(actions)
+            actions.clear()
+        }
+    }
+
+    private fun send(actions: Collection<AnyBulkableAction>) {
+        if (queue.offer(actions.toList(), queueTimeout.toLong(), TimeUnit.MILLISECONDS)) {
+            requestCounter += 1
+            logger.info("Put ${actions.size} actions into queue")
         }
     }
 
@@ -48,8 +119,11 @@ internal class Sink(
         var retries = 0
         while(actions.size > 0 && !waitingElastic.get()) {
             if (retries > 0) {
-//                val retryInterval = 30000L * retryNum
-                Thread.sleep(30000L)
+                val retryInterval = minOf(
+                        (retryInterval * Math.pow(2.0, retries.toDouble() - 1)).toInt(),
+                        maxRetryInterval
+                )
+                Thread.sleep(retryInterval * 1000L)
             }
             try {
                 actions = sendBulk(actions)

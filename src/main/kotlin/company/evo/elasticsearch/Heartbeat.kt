@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory
 
 internal class Heartbeat(
         private val esClient: JestClient,
-        private val heartbeatInterval: Long,
+        private val heartbeatInterval: Int,
         private val monitor: Object,
         private val waitingElastic: AtomicBoolean
 ) : Runnable
@@ -32,7 +32,7 @@ internal class Heartbeat(
     private fun waitElastic() {
         logger.info("Heartbeat started")
         while (true) {
-            Thread.sleep(heartbeatInterval)
+            Thread.sleep(heartbeatInterval * 1000L)
             try {
                 // TODO(Check status for sink indexes)
                 val res = esClient.execute(Ping.Builder().build())
