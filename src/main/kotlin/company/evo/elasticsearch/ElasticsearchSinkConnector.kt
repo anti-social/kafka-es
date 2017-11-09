@@ -4,12 +4,12 @@ import org.apache.kafka.common.config.AbstractConfig
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.connector.Task
+import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkConnector
-import java.net.ConnectException
 
 
 class ElasticsearchSinkConnector : SinkConnector() {
-    lateinit var configProps: Map<String, String>
+    private lateinit var configProps: Map<String, String>
 
     override fun config(): ConfigDef {
         return ConfigDef()
@@ -33,7 +33,8 @@ class ElasticsearchSinkConnector : SinkConnector() {
             this.configProps = props.toMap()
         } catch (e: ConfigException) {
             throw ConnectException(
-                    "Couldn't start ElasticsearchSinkConnector due to configuration error: $e")
+                    "Couldn't start ${this::class.java} due to configuration error", e
+            )
         }
     }
 

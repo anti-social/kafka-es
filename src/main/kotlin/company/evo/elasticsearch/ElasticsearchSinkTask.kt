@@ -8,6 +8,8 @@ import io.searchbox.client.config.HttpClientConfig
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.config.ConfigException
+import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
 
@@ -38,7 +40,13 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     override fun start(props: MutableMap<String, String>) {
         logger.debug("Starting ElasticsearchSinkTask")
-        val config = Config(props)
+        val config = try {
+            Config(props)
+        } catch (e: ConfigException) {
+            throw ConnectException(
+                    "Couldn't start ${this::class.java} due to configuration error", e
+            )
+        }
         this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
         this.protobufIncludeDefaultValues = config.getBoolean(
                 Config.PROTOBUF_INCLUDE_DEFAULT_VALUES
