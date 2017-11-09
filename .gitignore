@@ -1,4 +1,5 @@
 /.gradle
+/.vagga
 /build
 
 *.class
