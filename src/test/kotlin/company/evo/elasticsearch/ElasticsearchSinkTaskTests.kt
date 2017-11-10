@@ -1,19 +1,21 @@
 package company.evo.elasticsearch
 
 import com.google.gson.Gson
+
 import io.searchbox.action.Action
-import io.searchbox.action.BulkableAction
 import io.searchbox.client.JestClient
 import io.searchbox.client.JestResult
 import io.searchbox.client.JestResultHandler
 import io.searchbox.core.Bulk
+
 import org.apache.kafka.common.config.ConfigException
+import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkRecord
 
 import org.assertj.core.api.Assertions.*
+
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
-
 import org.junit.jupiter.api.Test
 
 
@@ -72,13 +74,15 @@ class ElasticsearchSinkTaskTests {
         assertThatThrownBy {
             task.start(mutableMapOf())
         }
-                .isInstanceOf(ConfigException::class.java)
-                .hasMessageContaining("\"connection.url\"")
+                .isInstanceOf(ConnectException::class.java)
+                .hasCauseInstanceOf(ConfigException::class.java)
+                .hasStackTraceContaining("\"connection.url\"")
         assertThatThrownBy {
             task.start(mutableMapOf("connection.url" to "localhost:9200"))
         }
-                .isInstanceOf(ConfigException::class.java)
-                .hasMessageContaining("\"topic.index.map\"")
+                .isInstanceOf(ConnectException::class.java)
+                .hasCauseInstanceOf(ConfigException::class.java)
+                .hasStackTraceContaining("\"topic.index.map\"")
     }
 
     @Test fun testPutEmptyList() {
@@ -87,7 +91,7 @@ class ElasticsearchSinkTaskTests {
         assertThat(esClient.requests).isEmpty()
     }
 
-    @Test fun testPutAndFlush() {
+    @Test fun testPutAndPreCommit() {
         val value = mapOf(
                 "action" to mapOf(
                         "delete" to mapOf(
@@ -102,7 +106,7 @@ class ElasticsearchSinkTaskTests {
                         null, value,
                         0L)
         ))
-        task.flush(null)
+        task.preCommit(HashMap())
         assertThat(esClient.requests)
                 .hasSize(1)
                 .first()

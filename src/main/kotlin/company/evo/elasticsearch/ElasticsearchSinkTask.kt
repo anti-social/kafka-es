@@ -60,6 +60,7 @@ class ElasticsearchSinkTask() : SinkTask() {
             esClientFactory
                     .setHttpClientConfig(
                             HttpClientConfig.Builder(esUrl)
+                                    .multiThreaded(true)
                                     .connTimeout(requestTimeout)
                                     .readTimeout(requestTimeout)
                                     .build()
@@ -70,6 +71,7 @@ class ElasticsearchSinkTask() : SinkTask() {
                 esClient,
                 bulkSize = config.getInt(Config.BULK_SIZE),
                 queueSize = config.getInt(Config.QUEUE_SIZE),
+                // TODO(Set queue timeout in config)
                 queueTimeout = requestTimeout,
                 maxInFlightRequests = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS),
                 heartbeatInterval = config.getInt(Config.HEARTBEAT_INTERVAL),
@@ -90,9 +92,9 @@ class ElasticsearchSinkTask() : SinkTask() {
     }
 
     override fun put(records: MutableCollection<SinkRecord>) {
-        logger.info("Recieved ${records.size} records")
+        logger.debug("Recieved ${records.size} records")
         if (isPaused) {
-            if (sink.isWaitingElastic()) {
+            if (sink.waitingElastic()) {
                 return
             } else {
                 resume()
@@ -132,6 +134,7 @@ class ElasticsearchSinkTask() : SinkTask() {
         if (isPaused) {
             return EMPTY_OFFSETS
         }
+        // TODO(Set flush timeout in config)
         if (!sink.flush(requestTimeout)) {
             pause()
             return EMPTY_OFFSETS

@@ -13,6 +13,9 @@ import io.searchbox.core.Bulk
 import io.searchbox.core.BulkResult
 
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 
 internal class Sink(
@@ -30,8 +33,11 @@ internal class Sink(
     private val confirmationQueue: BlockingQueue<String>
     private val sinkThreads: Collection<Thread>
     private val heartbeatThread: Thread
-    private val heartbeatMonitor = Object()
+    private val heartbeatLock = ReentrantLock()
+    private val elasticUnavailable = heartbeatLock.newCondition()
+    private val elasticAvailable = heartbeatLock.newCondition()
     private val waitingElastic = AtomicBoolean(false)
+    private val retrying = AtomicInteger(0)
 
     private val actions = ArrayList<AnyBulkableAction>()
     private var requestCounter = 0
@@ -50,7 +56,9 @@ internal class Sink(
 
     init {
         heartbeatThread = Thread(
-                Heartbeat(esClient, heartbeatInterval, heartbeatMonitor, waitingElastic),
+                Heartbeat(esClient, heartbeatInterval,
+                        heartbeatLock, elasticUnavailable, elasticAvailable,
+                        waitingElastic),
                 "elastic-heartbeat"
         )
         heartbeatThread.start()
@@ -62,7 +70,7 @@ internal class Sink(
                 while (!Thread.interrupted()) {
                     try {
                         val actions = queue.take()
-                        guaranteedSend(actions)
+                        endlessSend(actions)
                         confirmationQueue.put("ok")
                     } catch (e: InterruptedException) {}
                 }
@@ -74,6 +82,7 @@ internal class Sink(
         heartbeatThread.interrupt()
         sinkThreads.forEach { it.interrupt() }
         waitingElastic.set(false)
+        retrying.set(0)
         actions.clear()
         requestCounter = 0
     }
@@ -83,7 +92,7 @@ internal class Sink(
             send(actions)
             actions.clear()
         }
-        logger.info("Pre commit: waiting $requestCounter requests to be finished")
+        logger.debug("Flushing $requestCounter bulk requests")
         while (requestCounter > 0) {
             val confirm = confirmationQueue.poll(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
             if (confirm == null) {
@@ -95,7 +104,7 @@ internal class Sink(
         return true
     }
 
-    fun isWaitingElastic(): Boolean = waitingElastic.get()
+    fun waitingElastic(): Boolean = waitingElastic.get() || retrying.get() > 0
 
     fun put(action: AnyBulkableAction) {
         actions.add(action)
@@ -108,31 +117,51 @@ internal class Sink(
     private fun send(actions: Collection<AnyBulkableAction>) {
         if (queue.offer(actions.toList(), queueTimeout.toLong(), TimeUnit.MILLISECONDS)) {
             requestCounter += 1
-            logger.info("Put ${actions.size} actions into queue")
+            logger.debug("Put ${actions.size} actions into queue")
         }
     }
 
-    private fun guaranteedSend(
-            acts: Collection<AnyBulkableAction>
-    ) = synchronized(heartbeatMonitor) {
+    private fun endlessSend(acts: Collection<AnyBulkableAction>) {
         var actions = acts
         var retries = 0
-        while(actions.size > 0 && !waitingElastic.get()) {
-            if (retries > 0) {
-                val retryInterval = minOf(
-                        (retryInterval * Math.pow(2.0, retries.toDouble() - 1)).toInt(),
-                        maxRetryInterval
-                )
-                Thread.sleep(retryInterval * 1000L)
+        var wasRetries = false
+        try {
+            while (actions.size > 0) {
+                if (retries > 0) {
+                    if (retries == 1) {
+                        wasRetries = true
+                        retrying.incrementAndGet()
+                    }
+                    val retryInterval = minOf(
+                            (retryInterval * Math.pow(2.0, retries.toDouble() - 1)).toInt(),
+                            maxRetryInterval
+                    )
+                    Thread.sleep(retryInterval * 1000L)
+                }
+                try {
+                    actions = sendBulk(actions)
+                    retries += 1
+                } catch (e: IOException) {
+                    heartbeatLock.withLock {
+                        waitingElastic.set(true)
+                        elasticUnavailable.signal()
+                        logger.info("Waiting for elasticsearch ...")
+                        while (waitingElastic.get()) {
+                            elasticAvailable.await()
+                        }
+                        logger.info("Resumed indexing")
+                    }
+                    // Reset retries
+                    retries = 0
+                    if (wasRetries) {
+                        wasRetries = false
+                        retrying.decrementAndGet()
+                    }
+                }
             }
-            try {
-                actions = sendBulk(actions)
-                retries += 1
-            } catch (e: IOException) {
-                waitingElastic.set(true)
-                heartbeatMonitor.notifyAll()
-                heartbeatMonitor.wait()
-                retries = 0
+        } finally {
+            if (wasRetries) {
+                retrying.decrementAndGet()
             }
         }
     }
@@ -144,18 +173,23 @@ internal class Sink(
         if (actions.isEmpty()) {
             return emptyList()
         }
-        logger.info("Sending ${actions.size} actions to elasticsearch")
         val bulkRequest = Bulk.Builder()
                 .addAction(actions)
-                .build()
-        val bulkResult = esClient.execute(bulkRequest)
+                .build() as Bulk
+        val bulkResult = esClient.execute(bulkRequest) as BulkResult
         val retriableActions = ArrayList<AnyBulkableAction>()
-        if (!bulkResult.isSucceeded) {
+        var successItems = 0
+        if (bulkResult.isSucceeded) {
+            successItems = bulkResult.items.size
+        } else {
             val failedItems = ArrayList<BulkResult.BulkResultItem>()
             val retriableItems = ArrayList<BulkResult.BulkResultItem>()
             // TODO(Fix Jest to correctly process missing id (for create operation))
             bulkResult.items.zip(actions).forEach { (item, action) ->
-                if (item.error == null) return@forEach
+                if (item.error == null) {
+                    successItems += 1
+                    return@forEach
+                }
                 if (item.errorType in NON_RETRIABLE_ES_ERRORS) {
                     failedItems.add(item)
                 } else {
@@ -175,6 +209,9 @@ internal class Sink(
                         "Some documents weren't indexed, retrying them",
                         retriableItems))
             }
+        }
+        if (successItems > 0) {
+            logger.info("Successfully processed ${successItems} actions")
         }
         return retriableActions
     }
