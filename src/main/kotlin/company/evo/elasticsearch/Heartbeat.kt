@@ -2,8 +2,7 @@ package company.evo.elasticsearch
 
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.locks.Condition
-import java.util.concurrent.locks.Lock
+import java.util.concurrent.locks.ReentrantLock
 
 import kotlin.concurrent.withLock
 
@@ -15,15 +14,16 @@ import org.slf4j.LoggerFactory
 
 internal class Heartbeat(
         private val esClient: JestClient,
-        private val heartbeatInterval: Int,
-        private val lock: Lock,
-        private val elasticUnavailable: Condition,
-        private val elasticAvailable: Condition,
-        private val waitingElastic: AtomicBoolean
+        private val heartbeatInterval: Int
 ) : Runnable
 {
+    private val lock = ReentrantLock()
+    private val elasticUnavailable = lock.newCondition()
+    private val elasticAvailable = lock.newCondition()
+    private val waitingElastic = AtomicBoolean()
+
     companion object {
-        val logger = LoggerFactory.getLogger(Heartbeat::class.java)
+        private val logger = LoggerFactory.getLogger(Heartbeat::class.java)
     }
 
     override fun run() {
@@ -34,12 +34,12 @@ internal class Heartbeat(
                         elasticUnavailable.await()
                     }
                 }
-                waitElastic()
+                pulse()
             } catch (e: InterruptedException) {}
         }
     }
 
-    private fun waitElastic() {
+    private fun pulse() {
         logger.info("Heartbeat started")
         while (true) {
             Thread.sleep(heartbeatInterval * 1000L)
@@ -59,4 +59,15 @@ internal class Heartbeat(
             }
         }
     }
+
+    fun start() = lock.withLock {
+        waitingElastic.set(true)
+        elasticUnavailable.signal()
+        logger.info("Waiting for elasticsearch ...")
+        while (waitingElastic.get()) {
+            elasticAvailable.await()
+        }
+    }
+
+    fun isWaitingElastic() = waitingElastic.get()
 }

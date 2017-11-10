@@ -5,6 +5,7 @@ import com.google.protobuf.Message
 import io.searchbox.client.JestClient
 import io.searchbox.client.JestClientFactory
 import io.searchbox.client.config.HttpClientConfig
+import io.searchbox.params.Parameters
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.TopicPartition
@@ -33,6 +34,8 @@ class ElasticsearchSinkTask() : SinkTask() {
 
         private val EMPTY_OFFSETS: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap()
     }
+
+    internal class ActionAndHash(val action: AnyBulkableAction, val hash: Int?)
 
     internal constructor(esClient: JestClient) : this() {
         this.testEsClient = esClient
@@ -71,8 +74,6 @@ class ElasticsearchSinkTask() : SinkTask() {
                 esClient,
                 bulkSize = config.getInt(Config.BULK_SIZE),
                 queueSize = config.getInt(Config.QUEUE_SIZE),
-                // TODO(Set queue timeout in config)
-                queueTimeout = requestTimeout,
                 maxInFlightRequests = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS),
                 heartbeatInterval = config.getInt(Config.HEARTBEAT_INTERVAL),
                 retryInterval = config.getInt(Config.RETRY_INTERVAL),
@@ -82,7 +83,7 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     override fun stop() {
         logger.debug("Stopping ElasticsearchSinkTask")
-        sink.stop()
+        sink.close()
         isPaused = false
         esClient.close()
     }
@@ -100,37 +101,59 @@ class ElasticsearchSinkTask() : SinkTask() {
                 resume()
             }
         }
-        records.forEach { record ->
-            // TODO(index should be mandatory)
-            val index = topicToIndexMap[record.topic()]
-            val value = record.value()
+
+        records.forEach {
+            val action = processRecord(it)
             try {
-                val bulkAction = when (value) {
-                    is Map<*,*> -> {
-                        processJsonMessage(value, index)
-                    }
-                    is Message -> {
-                        processProtobufMessage(value, index,
-                                includeDefaultValues = protobufIncludeDefaultValues)
-                    }
-                    else -> {
-                        throw IllegalArgumentException(
-                                "Expected one of [${Map::class.java}, ${Message::class.java}] " +
-                                        "but was: ${value.javaClass}"
-                        )
-                    }
+                if (!sink.put(action.action, action.hash, isPaused, requestTimeout)) {
+                    pause()
                 }
-                sink.put(bulkAction)
             } catch (e: IllegalArgumentException) {
-                logger.error("Malformed message: $e")
+                logger.error("Malformed message", e)
             }
         }
+    }
+
+    private fun processRecord(record: SinkRecord): ActionAndHash {
+        // TODO(index should be mandatory)
+        val index = topicToIndexMap[record.topic()]
+        val value = record.value()
+        val bulkAction = when (value) {
+            is Map<*,*> -> {
+                processJsonMessage(value, index)
+            }
+            is Message -> {
+                processProtobufMessage(value, index,
+                        includeDefaultValues = protobufIncludeDefaultValues)
+            }
+            else -> {
+                throw IllegalArgumentException(
+                        "Expected one of [${Map::class.java}, ${Message::class.java}] " +
+                                "but was: ${value.javaClass}"
+                )
+            }
+        }
+        val routing = bulkAction.getParameter(Parameters.ROUTING).toList()
+        val hash = when {
+            routing.isNotEmpty() -> {
+                routing.joinToString("").hashCode()
+            }
+            bulkAction.id != null -> {
+                bulkAction.id.hashCode()
+            }
+            record.key() != null -> {
+                record.key().hashCode()
+            }
+            else -> null
+        }
+        return ActionAndHash(bulkAction, hash)
     }
 
     override fun preCommit(
             currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
     ): MutableMap<TopicPartition, OffsetAndMetadata>
     {
+        logger.debug("preCommit called")
         if (isPaused) {
             return EMPTY_OFFSETS
         }
