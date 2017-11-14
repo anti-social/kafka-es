@@ -7,7 +7,9 @@ buildscript {
     ext.kotlinVersion = '1.1.51'
 
     repositories {
-        mavenCentral()
+        // Temporary fix https://issues.sonatype.org/browse/MVNCENTRAL-2870
+        // mavenCentral()
+        maven { url 'https://repo.maven.apache.org/maven2' }
     }
 
     dependencies {
@@ -24,7 +26,9 @@ apply plugin: 'com.google.protobuf'
 apply plugin: 'org.junit.platform.gradle.plugin'
 
 repositories {
-    mavenCentral()
+    // Temporary fix https://issues.sonatype.org/browse/MVNCENTRAL-2870
+    // mavenCentral()
+    maven { url 'https://repo.maven.apache.org/maven2' }
 }
 
 ext {
