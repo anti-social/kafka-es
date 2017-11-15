@@ -103,7 +103,7 @@ internal class Sink(
     }
 
     fun put(action: AnyBulkableAction, hash: Int?, paused: Boolean, timeout: Timeout): Boolean {
-        val sinkIx = (hash ?: randomHashes.nextInt()) % sinkContexts.size
+        val sinkIx = Math.abs((hash ?: randomHashes.nextInt()) % sinkContexts.size)
         val res = sinkContexts[sinkIx].addAction(action, paused, timeout)
         return when (res) {
             is SinkWorker.Context.AddActionResult.Ok -> true
