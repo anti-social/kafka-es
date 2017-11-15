@@ -31,6 +31,7 @@ class ElasticsearchSinkTask() : SinkTask() {
     private var esClient: JestClient? = null
     private var sink: Sink? = null
     private var isPaused = false
+    private var processedRecords: Int = 0
 
     companion object {
         private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
@@ -94,6 +95,7 @@ class ElasticsearchSinkTask() : SinkTask() {
         sink?.close()
         esClient?.close()
         isPaused = false
+        processedRecords = 0
     }
 
     override fun version(): String {
@@ -118,6 +120,7 @@ class ElasticsearchSinkTask() : SinkTask() {
                 if (!sink.put(action.action, action.hash, isPaused, timeout)) {
                     pause()
                 }
+                processedRecords += 1
             } catch (e: IllegalArgumentException) {
                 logger.error("Malformed message", e)
             }
@@ -167,7 +170,6 @@ class ElasticsearchSinkTask() : SinkTask() {
             currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
     ): MutableMap<TopicPartition, OffsetAndMetadata>
     {
-        logger.debug("preCommit called")
         val timeout = Timeout(flushTimeoutMs)
         val sink = getSink()
         if (isPaused) {
@@ -177,6 +179,8 @@ class ElasticsearchSinkTask() : SinkTask() {
             pause()
             return EMPTY_OFFSETS
         }
+        logger.info("Committing $processedRecords processed records")
+        processedRecords = 0
         return super.preCommit(currentOffsets)
     }
 

@@ -89,8 +89,8 @@ internal class SinkWorker(
             val actions = actionChunks.peekFirst()
             return if (!paused && actions.size >= bulkSize) {
                 val task = createTask(actions)
-                logger.debug("Putting ${actions.size} actions into queue")
                 if (queue.offer(task, timeout.drift(), TimeUnit.MILLISECONDS)) {
+                    logger.debug("Queued ${actions.size} actions")
                     actionChunks.pollFirst()
                     AddActionResult.Task(task)
                 } else {
@@ -106,12 +106,12 @@ internal class SinkWorker(
             val chunksIterator = actionChunks.iterator()
             for (actions in chunksIterator) {
                 val task = createTask(actions)
-                logger.debug("Putting ${actions.size} actions into queue")
                 val timeoutMs = timeout.drift()
                 if (timeoutMs <= 0) {
                     return FlushResult(tasks, true)
                 }
                 if (queue.offer(task, timeoutMs, TimeUnit.MILLISECONDS)) {
+                    logger.debug("Queued ${actions.size} actions")
                     chunksIterator.remove()
                     tasks.add(task)
                 } else {
