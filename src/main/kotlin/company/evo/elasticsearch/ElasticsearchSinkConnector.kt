@@ -5,6 +5,7 @@ import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.connector.Task
 import org.apache.kafka.connect.errors.ConnectException
+import org.apache.kafka.connect.runtime.WorkerConfig
 import org.apache.kafka.connect.sink.SinkConnector
 
 
@@ -48,17 +49,17 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val BULK_SIZE = "bulk.size"
         val BULK_SIZE_DEFAULT = 1000
         val REQUEST_TIMEOUT = "request.timeout.ms"
-        val REQUEST_TIMEOUT_DEFAULT = 10000
+        val REQUEST_TIMEOUT_DEFAULT = 10_000L
         val MAX_IN_FLIGHT_REQUESTS = "max.in.flight.requests"
         val MAX_IN_FLIGHT_REQUESTS_DEFAULT = 1
         val QUEUE_SIZE = "queue.size"
-        val QUEUE_SIZE_DEFAULT = 10
+        val QUEUE_SIZE_DEFAULT = 5
         val HEARTBEAT_INTERVAL = "heartbeat.interval"
-        val HEARTBEAT_INTERVAL_DEFAULT = 5
+        val HEARTBEAT_INTERVAL_DEFAULT = 5000L
         val RETRY_INTERVAL = "retry.interval"
-        val RETRY_INTERVAL_DEFAULT = 30
+        val RETRY_INTERVAL_DEFAULT = 30_000L
         val MAX_RETRY_INTERVAL = "max.retry.interval"
-        val MAX_RETRY_INTERVAL_DEFAULT = 3600
+        val MAX_RETRY_INTERVAL_DEFAULT = 3600_000L
         val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include.default.values"
         val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = false
 
@@ -87,7 +88,7 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
             )
             CONFIG.define(
                     REQUEST_TIMEOUT,
-                    ConfigDef.Type.INT,
+                    ConfigDef.Type.LONG,
                     REQUEST_TIMEOUT_DEFAULT,
                     ConfigDef.Importance.MEDIUM,
                     "Timeout for Elasticsearch requests."
@@ -108,14 +109,14 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
             )
             CONFIG.define(
                     HEARTBEAT_INTERVAL,
-                    ConfigDef.Type.INT,
+                    ConfigDef.Type.LONG,
                     HEARTBEAT_INTERVAL_DEFAULT,
                     ConfigDef.Importance.MEDIUM,
                     "Interval between heartbeets when Elasticsearch is unavailable."
             )
             CONFIG.define(
                     RETRY_INTERVAL,
-                    ConfigDef.Type.INT,
+                    ConfigDef.Type.LONG,
                     RETRY_INTERVAL_DEFAULT,
                     ConfigDef.Importance.MEDIUM,
                     "Interval between retries when some actions was rejected." +
@@ -123,7 +124,7 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
             )
             CONFIG.define(
                     MAX_RETRY_INTERVAL,
-                    ConfigDef.Type.INT,
+                    ConfigDef.Type.LONG,
                     MAX_RETRY_INTERVAL_DEFAULT,
                     ConfigDef.Importance.MEDIUM,
                     "Maximum interval between retries in seconds."
@@ -134,6 +135,13 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                     PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT,
                     ConfigDef.Importance.LOW,
                     "When ``true`` includes all the message fields into json."
+            )
+            CONFIG.define(
+                    WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG,
+                    ConfigDef.Type.LONG,
+                    WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT,
+                    ConfigDef.Importance.LOW,
+                    ""
             )
         }
     }

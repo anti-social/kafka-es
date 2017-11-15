@@ -11,21 +11,25 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.errors.ConnectException
+import org.apache.kafka.connect.runtime.WorkerConfig
 import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
 
+import company.evo.kafka.Timeout
+
 
 class ElasticsearchSinkTask() : SinkTask() {
     private var testEsClient: JestClient? = null
 
-    lateinit private var esClient: JestClient
-    lateinit private var topicToIndexMap: Map<String, String>
-    private var requestTimeout = Config.REQUEST_TIMEOUT_DEFAULT
+    private var topicToIndexMap = emptyMap<String, String>()
+    private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
+    private var requestTimeoutMs = Config.REQUEST_TIMEOUT_DEFAULT
     private var protobufIncludeDefaultValues = Config.PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT
 
-    lateinit private var sink: Sink
+    private var esClient: JestClient? = null
+    private var sink: Sink? = null
     private var isPaused = false
 
     companion object {
@@ -43,49 +47,53 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     override fun start(props: MutableMap<String, String>) {
         logger.debug("Starting ElasticsearchSinkTask")
-        val config = try {
-            Config(props)
+        try {
+            val config = Config(props)
+            this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
+            // 90% from offset commit timeout
+            this.flushTimeoutMs = 90 * config.getLong(WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG) / 100
+            println(flushTimeoutMs)
+            this.protobufIncludeDefaultValues = config.getBoolean(
+                Config.PROTOBUF_INCLUDE_DEFAULT_VALUES
+            )
+            val esUrl = config.getList(Config.CONNECTION_URL)
+            val testEsClient = this.testEsClient
+            requestTimeoutMs = config.getLong(Config.REQUEST_TIMEOUT)
+            val esClient = if (testEsClient != null) {
+                testEsClient
+            } else {
+                esClientFactory
+                        .setHttpClientConfig(
+                                HttpClientConfig.Builder(esUrl)
+                                        .multiThreaded(true)
+                                        .connTimeout(requestTimeoutMs.toInt())
+                                        .readTimeout(requestTimeoutMs.toInt())
+                                        .build()
+                        )
+                esClientFactory.`object`
+            }
+            this.esClient = esClient
+            this.sink = Sink(
+                    esClient,
+                    bulkSize = config.getInt(Config.BULK_SIZE),
+                    queueSize = config.getInt(Config.QUEUE_SIZE),
+                    maxInFlightRequests = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS),
+                    heartbeatIntervalMs = config.getLong(Config.HEARTBEAT_INTERVAL),
+                    retryIntervalMs = config.getLong(Config.RETRY_INTERVAL),
+                    maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
+            )
         } catch (e: ConfigException) {
             throw ConnectException(
                     "Couldn't start ${this::class.java} due to configuration error", e
             )
         }
-        this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
-        this.protobufIncludeDefaultValues = config.getBoolean(
-                Config.PROTOBUF_INCLUDE_DEFAULT_VALUES
-        )
-        val esUrl = config.getList(Config.CONNECTION_URL)
-        val testEsClient = this.testEsClient
-        requestTimeout = config.getInt(Config.REQUEST_TIMEOUT)
-        if (testEsClient != null) {
-            this.esClient = testEsClient
-        } else {
-            esClientFactory
-                    .setHttpClientConfig(
-                            HttpClientConfig.Builder(esUrl)
-                                    .multiThreaded(true)
-                                    .connTimeout(requestTimeout)
-                                    .readTimeout(requestTimeout)
-                                    .build()
-                    )
-            this.esClient = esClientFactory.`object`
-        }
-        sink = Sink(
-                esClient,
-                bulkSize = config.getInt(Config.BULK_SIZE),
-                queueSize = config.getInt(Config.QUEUE_SIZE),
-                maxInFlightRequests = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS),
-                heartbeatInterval = config.getInt(Config.HEARTBEAT_INTERVAL),
-                retryInterval = config.getInt(Config.RETRY_INTERVAL),
-                maxRetryInterval = config.getInt(Config.MAX_RETRY_INTERVAL)
-        )
     }
 
     override fun stop() {
         logger.debug("Stopping ElasticsearchSinkTask")
-        sink.close()
+        sink?.close()
+        esClient?.close()
         isPaused = false
-        esClient.close()
     }
 
     override fun version(): String {
@@ -94,6 +102,7 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     override fun put(records: MutableCollection<SinkRecord>) {
         logger.debug("Recieved ${records.size} records")
+        val sink = getSink()
         if (isPaused) {
             if (sink.waitingElastic()) {
                 return
@@ -105,13 +114,18 @@ class ElasticsearchSinkTask() : SinkTask() {
         records.forEach {
             val action = processRecord(it)
             try {
-                if (!sink.put(action.action, action.hash, isPaused, requestTimeout)) {
+                val timeout = Timeout(requestTimeoutMs)
+                if (!sink.put(action.action, action.hash, isPaused, timeout)) {
                     pause()
                 }
             } catch (e: IllegalArgumentException) {
                 logger.error("Malformed message", e)
             }
         }
+    }
+
+    private fun getSink(): Sink {
+        return sink ?: throw ConnectException("Sink is not initialized")
     }
 
     private fun processRecord(record: SinkRecord): ActionAndHash {
@@ -154,11 +168,12 @@ class ElasticsearchSinkTask() : SinkTask() {
     ): MutableMap<TopicPartition, OffsetAndMetadata>
     {
         logger.debug("preCommit called")
+        val timeout = Timeout(flushTimeoutMs)
+        val sink = getSink()
         if (isPaused) {
             return EMPTY_OFFSETS
         }
-        // TODO(Set flush timeout in config)
-        if (!sink.flush(requestTimeout)) {
+        if (!sink.flush(timeout)) {
             pause()
             return EMPTY_OFFSETS
         }

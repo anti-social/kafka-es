@@ -1,6 +1,9 @@
 package company.evo.elasticsearch
 
 import java.util.Random
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
 import kotlin.concurrent.thread
@@ -8,9 +11,8 @@ import kotlin.concurrent.thread
 import io.searchbox.client.JestClient
 
 import org.slf4j.LoggerFactory
-import java.util.concurrent.FutureTask
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
+
+import company.evo.kafka.Timeout
 
 
 internal class Sink(
@@ -18,12 +20,12 @@ internal class Sink(
         private val bulkSize: Int,
         queueSize: Int,
         maxInFlightRequests: Int,
-        heartbeatInterval: Int,
-        private val retryInterval: Int,
-        private val maxRetryInterval: Int
+        heartbeatIntervalMs: Long,
+        private val retryIntervalMs: Long,
+        private val maxRetryIntervalMs: Long
 )
 {
-    private val heartbeat = Heartbeat(esClient, heartbeatInterval)
+    private val heartbeat = Heartbeat(esClient, heartbeatIntervalMs)
     private val heartbeatThread: Thread
     private val sinkContexts: List<SinkWorker.Context>
     private val sinkThreads: Collection<Thread>
@@ -48,8 +50,8 @@ internal class Sink(
                     esClient,
                     bulkSize,
                     queueSize,
-                    retryInterval,
-                    maxRetryInterval,
+                    retryIntervalMs,
+                    maxRetryIntervalMs,
                     retryingCount
             )
             context to thread(name = "elastic-sink-$it") {
@@ -73,23 +75,22 @@ internal class Sink(
         retryingCount.set(0)
     }
 
-    fun flush(timeoutMs: Int): Boolean {
+    fun flush(timeout: Timeout): Boolean {
         val pendingBulksCount = sinkContexts.map { it.pendingBulksCount() }.sum()
         val pendingTasksCount = tasks.count { !it.isDone }
         logger.debug("Flushing $pendingBulksCount pending bulks and $pendingTasksCount tasks")
-        // TODO(Drift timeout)
-        // try to flush all pending bulks
-        sinkContexts.forEach { ctx ->
-            val flushResult = ctx.flush(timeoutMs)
-            tasks.addAll(flushResult.tasks)
-            if (flushResult.isTimedOut) {
-                return false
-            }
-        }
         try {
+            // try to flush all pending bulks
+            sinkContexts.forEach { ctx ->
+                val flushResult = ctx.flush(timeout)
+                tasks.addAll(flushResult.tasks)
+                if (flushResult.isTimedOut) {
+                    return false
+                }
+            }
             // and wait all tasks finished
             tasks.forEach { task ->
-                task.get(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                task.get(timeout.driftOrFail(), TimeUnit.MILLISECONDS)
             }
         } catch (e: TimeoutException) {
             return false
@@ -101,9 +102,9 @@ internal class Sink(
         return heartbeat.isWaitingElastic() || retryingCount.get() > 0
     }
 
-    fun put(action: AnyBulkableAction, hash: Int?, paused: Boolean, timeoutMs: Int): Boolean {
+    fun put(action: AnyBulkableAction, hash: Int?, paused: Boolean, timeout: Timeout): Boolean {
         val sinkIx = (hash ?: randomHashes.nextInt()) % sinkContexts.size
-        val res = sinkContexts[sinkIx].addAction(action, paused, timeoutMs)
+        val res = sinkContexts[sinkIx].addAction(action, paused, timeout)
         return when (res) {
             is SinkWorker.Context.AddActionResult.Ok -> true
             is SinkWorker.Context.AddActionResult.Timeout -> false

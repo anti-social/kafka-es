@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory
 
 internal class Heartbeat(
         private val esClient: JestClient,
-        private val heartbeatInterval: Int
+        private val heartbeatIntervalMs: Long
 ) : Runnable
 {
     private val lock = ReentrantLock()
@@ -42,7 +42,7 @@ internal class Heartbeat(
     private fun pulse() {
         logger.info("Heartbeat started")
         while (true) {
-            Thread.sleep(heartbeatInterval * 1000L)
+            Thread.sleep(heartbeatIntervalMs)
             try {
                 // TODO(Check status for sink indexes)
                 val res = esClient.execute(Ping.Builder().build())

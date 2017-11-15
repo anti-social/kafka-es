@@ -8,19 +8,22 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+import kotlin.collections.ArrayList
+
 import io.searchbox.client.JestClient
 import io.searchbox.core.Bulk
 import io.searchbox.core.BulkResult
 
 import org.slf4j.LoggerFactory
-import kotlin.collections.ArrayList
+
+import company.evo.kafka.Timeout
 
 
 internal class SinkWorker(
         private val heartbeat: Heartbeat,
         private val esClient: JestClient,
-        private val retryInterval: Int,
-        private val maxRetryInterval: Int,
+        private val retryIntervalMs: Long,
+        private val maxRetryIntervalMs: Long,
         private var actions: Collection<AnyBulkableAction>,
         private val retryingCount: AtomicInteger
 ) : Callable<Boolean> {
@@ -41,8 +44,8 @@ internal class SinkWorker(
             private val esClient: JestClient,
             private val bulkSize: Int,
             queueSize: Int,
-            private val retryInterval: Int,
-            private val maxRetryInterval: Int,
+            private val retryIntervalMs: Long,
+            private val maxRetryIntervalMs: Long,
             private val retryingCount: AtomicInteger
     ) {
         private val actionChunks = LinkedList<ArrayList<AnyBulkableAction>>()
@@ -61,8 +64,8 @@ internal class SinkWorker(
                     SinkWorker(
                             heartbeat,
                             esClient,
-                            retryInterval,
-                            maxRetryInterval,
+                            retryIntervalMs,
+                            maxRetryIntervalMs,
                             actions,
                             retryingCount
                     )
@@ -76,7 +79,7 @@ internal class SinkWorker(
             return queue.take()
         }
 
-        internal fun addAction(action: AnyBulkableAction, paused: Boolean, timeoutMs: Int): AddActionResult {
+        internal fun addAction(action: AnyBulkableAction, paused: Boolean, timeout: Timeout): AddActionResult {
             val lastChunk = actionChunks.peekLast()
             if (lastChunk == null || lastChunk.size >= bulkSize) {
                 actionChunks.add(ArrayList())
@@ -87,7 +90,7 @@ internal class SinkWorker(
             return if (!paused && actions.size >= bulkSize) {
                 val task = createTask(actions)
                 logger.debug("Putting ${actions.size} actions into queue")
-                if (queue.offer(task, timeoutMs.toLong(), TimeUnit.MILLISECONDS)) {
+                if (queue.offer(task, timeout.drift(), TimeUnit.MILLISECONDS)) {
                     actionChunks.pollFirst()
                     AddActionResult.Task(task)
                 } else {
@@ -98,13 +101,17 @@ internal class SinkWorker(
             }
         }
 
-        fun flush(timeoutMs: Int): FlushResult {
+        fun flush(timeout: Timeout): FlushResult {
             val tasks = ArrayList<FutureTask<Boolean>>()
             val chunksIterator = actionChunks.iterator()
             for (actions in chunksIterator) {
                 val task = createTask(actions)
                 logger.debug("Putting ${actions.size} actions into queue")
-                if (queue.offer(task, timeoutMs.toLong(), TimeUnit.MILLISECONDS)) {
+                val timeoutMs = timeout.drift()
+                if (timeoutMs <= 0) {
+                    return FlushResult(tasks, true)
+                }
+                if (queue.offer(task, timeoutMs, TimeUnit.MILLISECONDS)) {
                     chunksIterator.remove()
                     tasks.add(task)
                 } else {
@@ -125,12 +132,12 @@ internal class SinkWorker(
                         wereRetries = true
                         retryingCount.incrementAndGet()
                     }
-                    val retryInterval = minOf(
-                            (retryInterval * Math.pow(2.0, retries.toDouble() - 1)).toInt(),
-                            maxRetryInterval
+                    val retryIntervalMs = minOf(
+                            (retryIntervalMs * Math.pow(2.0, retries.toDouble() - 1)).toLong(),
+                            maxRetryIntervalMs
                     )
-                    logger.debug("Sleeping for $retryInterval seconds")
-                    Thread.sleep(retryInterval * 1000L)
+                    logger.debug("Sleeping for $retryIntervalMs ms")
+                    Thread.sleep(retryIntervalMs)
                 }
                 try {
                     actions = sendBulk(actions)
