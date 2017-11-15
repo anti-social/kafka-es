@@ -53,7 +53,6 @@ class ElasticsearchSinkTask() : SinkTask() {
             this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
             // 90% from offset commit timeout
             this.flushTimeoutMs = 90 * config.getLong(WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG) / 100
-            println(flushTimeoutMs)
             this.protobufIncludeDefaultValues = config.getBoolean(
                 Config.PROTOBUF_INCLUDE_DEFAULT_VALUES
             )
