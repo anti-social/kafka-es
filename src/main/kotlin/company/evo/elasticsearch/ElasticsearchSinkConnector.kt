@@ -147,9 +147,8 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
     }
 
     fun getMap(name: String): Map<String, String> {
-        return getList(name).map {
-            val (key, value) = it.split(':', limit = 2)
-            key to value
-        }.toMap()
+        return getList(name)
+                .map { it.split(':', limit = 2) }
+                .associate { it[0].trim() to it[1].trim() }
     }
 }
