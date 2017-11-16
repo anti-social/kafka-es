@@ -78,7 +78,9 @@ internal class Sink(
     fun flush(timeout: Timeout): Boolean {
         val pendingBulksCount = sinkContexts.map { it.pendingBulksCount() }.sum()
         val pendingTasksCount = tasks.count { !it.isDone }
-        logger.debug("Flushing $pendingBulksCount pending bulks and $pendingTasksCount tasks")
+        if (pendingBulksCount > 0 || pendingTasksCount > 0) {
+            logger.debug("Flushing $pendingBulksCount pending bulks and $pendingTasksCount tasks")
+        }
         try {
             // try to flush all pending bulks
             sinkContexts.forEach { ctx ->

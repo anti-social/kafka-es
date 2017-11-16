@@ -102,7 +102,9 @@ class ElasticsearchSinkTask() : SinkTask() {
     }
 
     override fun put(records: MutableCollection<SinkRecord>) {
-        logger.debug("Recieved ${records.size} records")
+        if (records.size > 0) {
+            logger.debug("Recieved ${records.size} records")
+        }
         val sink = getSink()
         if (isPaused) {
             if (sink.waitingElastic()) {
@@ -178,7 +180,9 @@ class ElasticsearchSinkTask() : SinkTask() {
             pause()
             return EMPTY_OFFSETS
         }
-        logger.info("Committing $processedRecords processed records")
+        if (processedRecords > 0) {
+            logger.info("Committing $processedRecords processed records")
+        }
         processedRecords = 0
         return super.preCommit(currentOffsets)
     }
