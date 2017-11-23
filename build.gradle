@@ -1,10 +1,10 @@
 // We cannot use plugins in subprojects
 //plugins {
-//    id 'org.jetbrains.kotlin.jvm' version '1.1.51'
+//    id 'org.jetbrains.kotlin.jvm' version '1.1.60'
 //}
 
 buildscript {
-    ext.kotlinVersion = '1.1.51'
+    ext.kotlinVersion = '1.1.60'
 
     repositories {
         // Temporary fix https://issues.sonatype.org/browse/MVNCENTRAL-2870
