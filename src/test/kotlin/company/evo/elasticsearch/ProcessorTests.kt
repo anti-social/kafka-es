@@ -16,16 +16,18 @@ import company.evo.kafka.elasticsearch.BulkActionProto.Script
 
 
 class JsonProcessorTests {
+    private val processor = JsonProcessor()
+
     @Test
     fun testEmptyMap() {
-        assertThatThrownBy { processJsonMessage(mapOf<Any,Any?>(), "test_index") }
+        assertThatThrownBy { processor.process(mapOf<Any,Any?>(), "test_index") }
                 .isInstanceOf(IllegalArgumentException::class.java)
     }
 
     @Test
     fun testInvalidPayload() {
         assertThatThrownBy {
-            processJsonMessage(mapOf("payload" to "<invalid>"), "test_index")
+            processor.process(mapOf("payload" to "<invalid>"), "test_index")
         }
                 .isInstanceOf(IllegalArgumentException::class.java)
                 .hasMessageContaining("[payload]")
@@ -34,7 +36,7 @@ class JsonProcessorTests {
     @Test
     fun testMissingAction() {
         assertThatThrownBy {
-            processJsonMessage(mapOf("source" to mapOf<Any,Any?>()), "test_index")
+            processor.process(mapOf("source" to mapOf<Any,Any?>()), "test_index")
         }
                 .isInstanceOf(IllegalArgumentException::class.java)
                 .hasMessageContaining("[action]")
@@ -43,7 +45,7 @@ class JsonProcessorTests {
     @Test
     fun testMissingSource() {
         assertThatThrownBy {
-            processJsonMessage(
+            processor.process(
                     mapOf(
                             "action" to mapOf(
                                     "index" to mapOf<Any,Any?>()
@@ -59,7 +61,7 @@ class JsonProcessorTests {
     @Test
     fun testUnknownAction() {
         assertThatThrownBy {
-            processJsonMessage(
+            processor.process(
                     mapOf(
                             "action" to mapOf(
                                     "<unknown>" to mapOf<Any,Any?>()
@@ -74,7 +76,7 @@ class JsonProcessorTests {
 
     @Test
     fun testIndex() {
-        val action = processJsonMessage(
+        val action = processor.process(
                 mapOf<Any, Any?>(
                         "action" to mapOf(
                                 "index" to mapOf(
@@ -107,7 +109,7 @@ class JsonProcessorTests {
 
     @Test
     fun testDelete() {
-        val action = processJsonMessage(
+        val action = processor.process(
                 mapOf<Any, Any?>(
                         "action" to mapOf(
                                 "delete" to mapOf(
@@ -132,7 +134,7 @@ class JsonProcessorTests {
 
     @Test
     fun testUpdate() {
-        val action = processJsonMessage(
+        val action = processor.process(
                 mapOf<Any, Any?>(
                         "action" to mapOf(
                                 "update" to mapOf(
@@ -162,7 +164,7 @@ class JsonProcessorTests {
 
     @Test
     fun testCreate() {
-        val action = processJsonMessage(
+        val action = processor.process(
                 mapOf<Any, Any?>(
                         "action" to mapOf(
                                 "create" to mapOf(
@@ -188,6 +190,8 @@ class JsonProcessorTests {
 }
 
 class ProtobufProcessorTests {
+    private val processor = ProtobufProcessor(includeDefaultValues = true)
+    private val processorNoDefaults = ProtobufProcessor(includeDefaultValues = false)
     private val gson = Gson()
     private val testMsg = TestProto.TestMessage.newBuilder()
             .setAction(BulkAction.newBuilder()
@@ -204,9 +208,10 @@ class ProtobufProcessorTests {
     @Test
     fun missingAction() {
         assertThatThrownBy {
-            processProtobufMessage(
-                    TestProto.MissingActionMessage.getDefaultInstance(), "test_index",
-                    includeDefaultValues = true
+            processor.process(
+                    TestProto.MissingActionMessage.getDefaultInstance(),
+                    "test_index"
+
             )
         }
                 .isInstanceOf(IllegalArgumentException::class.java)
@@ -216,9 +221,9 @@ class ProtobufProcessorTests {
     @Test
     fun invalidAction() {
         assertThatThrownBy {
-            processProtobufMessage(
-                    TestProto.InvalidActionMessage.getDefaultInstance(), "test_index",
-                    includeDefaultValues = true
+            processor.process(
+                    TestProto.InvalidActionMessage.getDefaultInstance(),
+                    "test_index"
             )
         }
                 .isInstanceOf(IllegalArgumentException::class.java)
@@ -229,9 +234,9 @@ class ProtobufProcessorTests {
     @Test
     fun missingSource() {
         assertThatThrownBy {
-            processProtobufMessage(
-                    TestProto.MissingSourceMessage.getDefaultInstance(), "test_index",
-                    includeDefaultValues = true
+            processor.process(
+                    TestProto.MissingSourceMessage.getDefaultInstance(),
+                    "test_index"
             )
         }
                 .isInstanceOf(IllegalArgumentException::class.java)
@@ -241,9 +246,9 @@ class ProtobufProcessorTests {
     @Test
     fun invalidSource() {
         assertThatThrownBy {
-            processProtobufMessage(
-                    TestProto.InvalidSourceMessage.getDefaultInstance(), "test_index",
-                    includeDefaultValues = true
+            processor.process(
+                    TestProto.InvalidSourceMessage.getDefaultInstance(),
+                    "test_index"
             )
         }
                 .isInstanceOf(IllegalArgumentException::class.java)
@@ -253,7 +258,9 @@ class ProtobufProcessorTests {
 
     @Test
     fun testIndex() {
-        val action = processProtobufMessage(testMsg, "test_index")
+        val action = processorNoDefaults.process(
+                testMsg, "test_index"
+        )
         assertThat(action.index).isEqualTo("test_index")
         assertThat(action.type).isEqualTo("test")
         assertThat(action.id).isEqualTo("123")
@@ -268,8 +275,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testIndexIncludingDefaultValues() {
-        val action = processProtobufMessage(
-                testMsg, "test_index", includeDefaultValues = true)
+        val action = processor.process(testMsg, "test_index")
         assertThat(action.index).isEqualTo("test_index")
         assertThat(action.type).isEqualTo("test")
         assertThat(action.id).isEqualTo("123")
@@ -285,7 +291,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testDelete() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.TestMessage.newBuilder()
                         .setAction(BulkAction.newBuilder()
                                 .setOpType(BulkAction.OpType.DELETE)
@@ -304,7 +310,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testUpdate() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.UpdateMessage.newBuilder()
                         .setAction(BulkAction.newBuilder()
                                 .setOpType(BulkAction.OpType.UPDATE)
@@ -329,7 +335,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testUpdateScript() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.UpdateMessage.newBuilder()
                         .setAction(BulkAction.newBuilder()
                                 .setOpType(BulkAction.OpType.UPDATE)
@@ -362,7 +368,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testCreate() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.TestMessage.newBuilder()
                         .setAction(BulkAction.newBuilder()
                                 .setOpType(BulkAction.OpType.CREATE)
@@ -385,7 +391,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testEnum() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.EnumMessage.newBuilder()
                         .setSource(TestProto.EnumMessage.Source.newBuilder()
                                 .setStatus(TestProto.EnumMessage.Status.DELETED)),
@@ -397,7 +403,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testEnumDefault() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.EnumMessage.newBuilder()
                         .setSource(TestProto.EnumMessage.Source.getDefaultInstance()),
                 "test_index"
@@ -407,11 +413,10 @@ class ProtobufProcessorTests {
 
     @Test
     fun testEnumIncludingDefaultValues() {
-        val action = processProtobufMessage(
+        val action = processor.process(
                 TestProto.EnumMessage.newBuilder()
                         .setSource(TestProto.EnumMessage.Source.getDefaultInstance()),
-                "test_index",
-                includeDefaultValues = true
+                "test_index"
         )
         assertThat(action.getData(gson))
                 .isEqualTo("""{"status":"ACTIVE"}""")
@@ -419,7 +424,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testRepeated() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.RepeatedMessage.newBuilder()
                         .setSource(TestProto.RepeatedMessage.Source.newBuilder()
                                 .addAllDeliveryRegions(listOf(1, 5))),
@@ -431,7 +436,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testEmptyRepeated() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.RepeatedMessage.newBuilder()
                         .setSource(TestProto.RepeatedMessage.Source.getDefaultInstance()),
                 "test_index"
@@ -441,7 +446,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testMap() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.MapMessage.newBuilder()
                         .setSource(TestProto.MapMessage.Source.newBuilder()
                                 .putMyMap("test", "test value")),
@@ -453,7 +458,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testEmptyMap() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.MapMessage.newBuilder()
                         .setSource(TestProto.MapMessage.Source.getDefaultInstance()),
                 "test_index"
@@ -463,18 +468,17 @@ class ProtobufProcessorTests {
 
     @Test
     fun testEmptyMapIncludingDefaultValues() {
-        val action = processProtobufMessage(
+        val action = processor.process(
                 TestProto.MapMessage.newBuilder()
                         .setSource(TestProto.MapMessage.Source.getDefaultInstance()),
-                "test_index",
-                includeDefaultValues = true
+                "test_index"
         )
         assertThat(action.getData(gson)).isEqualTo("""{"my_map":{}}""")
     }
 
     @Test
     fun testTimestamp() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.DatetimeMessage.newBuilder()
                         .setSource(TestProto.DatetimeMessage.Source.newBuilder()
                                 .setDatetime(Timestamp.newBuilder().setSeconds(1))),
@@ -486,7 +490,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testDefaultInt32Value() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.Int32ValueMessage.newBuilder()
                         .setSource(TestProto.Int32ValueMessage.Source.newBuilder()
                                 .setNullableInt(Int32Value.newBuilder().setValue(0))),
@@ -497,7 +501,7 @@ class ProtobufProcessorTests {
 
     @Test
     fun testMissingInt32Value() {
-        val action = processProtobufMessage(
+        val action = processorNoDefaults.process(
                 TestProto.Int32ValueMessage.getDefaultInstance(), "test_index"
         )
         assertThat(action.getData(gson)).isEqualTo("{}")

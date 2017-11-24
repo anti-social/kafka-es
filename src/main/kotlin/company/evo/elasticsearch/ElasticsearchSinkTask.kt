@@ -26,12 +26,14 @@ class ElasticsearchSinkTask() : SinkTask() {
     private var topicToIndexMap = emptyMap<String, String>()
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
     private var requestTimeoutMs = Config.REQUEST_TIMEOUT_DEFAULT
-    private var protobufIncludeDefaultValues = Config.PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT
 
     private var esClient: JestClient? = null
     private var sink: Sink? = null
     private var isPaused = false
     private var processedRecords: Int = 0
+
+    private var protobufProcessor = ProtobufProcessor()
+    private val jsonProcessor = JsonProcessor()
 
     companion object {
         private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
@@ -51,10 +53,12 @@ class ElasticsearchSinkTask() : SinkTask() {
         try {
             val config = Config(props)
             this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
-            // 90% from offset commit timeout
+            // 90% from the offset commit timeout
             this.flushTimeoutMs = 90 * config.getLong(WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG) / 100
-            this.protobufIncludeDefaultValues = config.getBoolean(
-                Config.PROTOBUF_INCLUDE_DEFAULT_VALUES
+            this.protobufProcessor = ProtobufProcessor(
+                    includeDefaultValues = config.getBoolean(
+                            Config.PROTOBUF_INCLUDE_DEFAULT_VALUES
+                    )
             )
             val esUrl = config.getList(Config.CONNECTION_URL)
             val testEsClient = this.testEsClient
@@ -138,11 +142,10 @@ class ElasticsearchSinkTask() : SinkTask() {
         val value = record.value()
         val bulkAction = when (value) {
             is Map<*,*> -> {
-                processJsonMessage(value, index)
+                jsonProcessor.process(value, index)
             }
             is Message -> {
-                processProtobufMessage(value, index,
-                        includeDefaultValues = protobufIncludeDefaultValues)
+                protobufProcessor.process(value, index)
             }
             else -> {
                 throw IllegalArgumentException(
