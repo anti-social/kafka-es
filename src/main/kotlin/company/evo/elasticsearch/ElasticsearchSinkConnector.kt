@@ -61,7 +61,7 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val MAX_RETRY_INTERVAL = "max.retry.interval"
         val MAX_RETRY_INTERVAL_DEFAULT = 3600_000L
         val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include.default.values"
-        val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = false
+        val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = true
 
         val CONFIG = ConfigDef()
         init {
@@ -134,7 +134,7 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                     ConfigDef.Type.BOOLEAN,
                     PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT,
                     ConfigDef.Importance.LOW,
-                    "When ``true`` includes all the message fields into json."
+                    "When ``false`` does not include fields with default value into json doument."
             )
             CONFIG.define(
                     WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG,
