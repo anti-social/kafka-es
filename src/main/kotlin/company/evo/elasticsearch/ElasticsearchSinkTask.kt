@@ -82,6 +82,7 @@ class ElasticsearchSinkTask() : SinkTask() {
                     bulkSize = config.getInt(Config.BULK_SIZE),
                     queueSize = config.getInt(Config.QUEUE_SIZE),
                     maxInFlightRequests = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS),
+                    delayBeetweenRequests = config.getLong(Config.DELAY_BEETWEEN_REQUESTS),
                     heartbeatIntervalMs = config.getLong(Config.HEARTBEAT_INTERVAL),
                     retryIntervalMs = config.getLong(Config.RETRY_INTERVAL),
                     maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
@@ -118,10 +119,11 @@ class ElasticsearchSinkTask() : SinkTask() {
             }
         }
 
+        val timeout = Timeout(requestTimeoutMs)
         records.forEach {
             val action = processRecord(it)
             try {
-                val timeout = Timeout(requestTimeoutMs)
+                timeout.reset()
                 if (!sink.put(action.action, action.hash, isPaused, timeout)) {
                     pause()
                 }

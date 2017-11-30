@@ -16,10 +16,18 @@ inline fun <reified T> castOrFail(obj: Any?, field: String? = null): T {
 }
 
 class Timeout(private val initialTimeoutMs: Long) {
-    private val startedAt = System.nanoTime()
+    private var startedAt = System.nanoTime()
+
+    fun reset() {
+        startedAt = System.nanoTime()
+    }
 
     fun drift(): Long {
-        return initialTimeoutMs - (System.nanoTime() - startedAt) / 1_000_000
+        val measuredIntervalMs = Math.max(
+                (System.nanoTime() - startedAt) / 1_000_000,
+                0L
+        )
+        return initialTimeoutMs - measuredIntervalMs
     }
 
     fun driftOrFail(): Long {

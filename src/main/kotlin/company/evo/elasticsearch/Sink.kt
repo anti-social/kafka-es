@@ -20,6 +20,7 @@ internal class Sink(
         private val bulkSize: Int,
         queueSize: Int,
         maxInFlightRequests: Int,
+        delayBeetweenRequests: Long,
         heartbeatIntervalMs: Long,
         private val retryIntervalMs: Long,
         private val maxRetryIntervalMs: Long
@@ -55,10 +56,19 @@ internal class Sink(
                     retryingCount
             )
             context to thread(name = "elastic-sink-$it") {
+                val timeout = Timeout(delayBeetweenRequests)
                 while (!Thread.interrupted()) {
                     try {
                         val task = context.takeTask()
+                        if (delayBeetweenRequests > 0) {
+                            val sleepDelay = timeout.drift()
+                            if (sleepDelay > 0) {
+                                logger.trace("Falling asleep for {} ms ...", sleepDelay)
+                                Thread.sleep(sleepDelay)
+                            }
+                        }
                         task.run()
+                        timeout.reset()
                     } catch (e: InterruptedException) {}
                 }
             }

@@ -54,7 +54,7 @@ internal class SinkWorker(
         sealed class AddActionResult {
             object Ok : AddActionResult()
             object Timeout : AddActionResult()
-            data class Task(val task: FutureTask<Boolean>) : AddActionResult()
+            class Task(val task: FutureTask<Boolean>) : AddActionResult()
         }
 
         class FlushResult(val tasks: Collection<FutureTask<Boolean>>, val isTimedOut: Boolean)

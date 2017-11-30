@@ -52,6 +52,8 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val REQUEST_TIMEOUT_DEFAULT = 10_000L
         val MAX_IN_FLIGHT_REQUESTS = "max.in.flight.requests"
         val MAX_IN_FLIGHT_REQUESTS_DEFAULT = 1
+        val DELAY_BEETWEEN_REQUESTS = "delay.between.requests.ms"
+        val DELAY_BEETWEEN_REQUESTS_DEFAULT = 0L
         val QUEUE_SIZE = "queue.size"
         val QUEUE_SIZE_DEFAULT = 5
         val HEARTBEAT_INTERVAL = "heartbeat.interval"
@@ -99,6 +101,13 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                     MAX_IN_FLIGHT_REQUESTS_DEFAULT,
                     ConfigDef.Importance.MEDIUM,
                     "Maximum number of the concurrent requests to Elasticsearch."
+            )
+            CONFIG.define(
+                    DELAY_BEETWEEN_REQUESTS,
+                    ConfigDef.Type.LONG,
+                    DELAY_BEETWEEN_REQUESTS_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    "Delay before next bulk request to Elasticsearch"
             )
             CONFIG.define(
                     QUEUE_SIZE,
