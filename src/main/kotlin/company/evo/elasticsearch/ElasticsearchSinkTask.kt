@@ -1,5 +1,7 @@
 package company.evo.elasticsearch
 
+import java.util.Objects
+
 import com.google.protobuf.Message
 
 import io.searchbox.client.JestClient
@@ -42,7 +44,7 @@ class ElasticsearchSinkTask() : SinkTask() {
         private val EMPTY_OFFSETS: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap()
     }
 
-    internal class ActionAndHash(val action: AnyBulkableAction, val hash: Int?)
+    internal class ActionAndHash(val action: AnyBulkableAction, val hash: Int)
 
     internal constructor(esClient: JestClient) : this() {
         this.testEsClient = esClient
@@ -156,9 +158,10 @@ class ElasticsearchSinkTask() : SinkTask() {
             }
         }
         val routing = bulkAction.getParameter(Parameters.ROUTING).toList()
+        // TODO(Possibly we always should hash only topic, partition and key)
         val hash = when {
             routing.isNotEmpty() -> {
-                routing.joinToString("").hashCode()
+                Objects.hash(*routing.toTypedArray())
             }
             bulkAction.id != null -> {
                 bulkAction.id.hashCode()
@@ -166,7 +169,9 @@ class ElasticsearchSinkTask() : SinkTask() {
             record.key() != null -> {
                 record.key().hashCode()
             }
-            else -> null
+            else -> {
+                Objects.hash(record.topic(), record.kafkaPartition())
+            }
         }
         return ActionAndHash(bulkAction, hash)
     }

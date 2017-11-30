@@ -1,6 +1,5 @@
 package company.evo.elasticsearch
 
-import java.util.Random
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -32,8 +31,6 @@ internal class Sink(
     private val sinkThreads: Collection<Thread>
     private val retryingCount = AtomicInteger(0)
     private val tasks = ArrayList<FutureTask<Boolean>>(queueSize * maxInFlightRequests)
-
-    private val randomHashes = Random().ints().iterator()
 
     companion object {
         private val logger = LoggerFactory.getLogger(Sink::class.java)
@@ -114,8 +111,8 @@ internal class Sink(
         return heartbeat.isWaitingElastic() || retryingCount.get() > 0
     }
 
-    fun put(action: AnyBulkableAction, hash: Int?, paused: Boolean, timeout: Timeout): Boolean {
-        val sinkIx = Math.abs((hash ?: randomHashes.nextInt()) % sinkContexts.size)
+    fun put(action: AnyBulkableAction, hash: Int, paused: Boolean, timeout: Timeout): Boolean {
+        val sinkIx = Math.abs(hash) % sinkContexts.size
         val res = sinkContexts[sinkIx].addAction(action, paused, timeout)
         return when (res) {
             is SinkWorker.Context.AddActionResult.Ok -> true
