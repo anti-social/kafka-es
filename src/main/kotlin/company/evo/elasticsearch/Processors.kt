@@ -35,7 +35,7 @@ internal class JsonProcessor() : Processor {
                                 "but was [${actionEntry.key}]")
             }
         }
-        if (index != null && index.isNotEmpty()) {
+        if (index?.isNotEmpty() == true) {
             actionBuilder.index(index)
         }
         return actionBuilder.build()
@@ -70,7 +70,7 @@ internal class ProtobufProcessor(
                 throw IllegalArgumentException(
                         "[source] field must be an instance of the ${Message::class.java}")
         val actionBuilder = AnyBulkableAction.Builder(action)
-        if (index != null && index.isNotEmpty()) {
+        if (index?.isNotEmpty() == true) {
             actionBuilder.index(index)
         }
         when (action.opType) {

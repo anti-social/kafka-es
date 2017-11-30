@@ -137,7 +137,6 @@ class ElasticsearchSinkTask() : SinkTask() {
     }
 
     private fun processRecord(record: SinkRecord): ActionAndHash {
-        // TODO(index should be mandatory)
         val index = topicToIndexMap[record.topic()]
         val value = record.value()
         val bulkAction = when (value) {
