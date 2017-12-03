@@ -37,6 +37,9 @@ class ElasticsearchSinkTask() : SinkTask() {
     private var protobufProcessor = ProtobufProcessor()
     private val jsonProcessor = JsonProcessor()
 
+    private val requestTimeout = Timeout(requestTimeoutMs)
+    private val flushTimeout = Timeout(flushTimeoutMs)
+
     companion object {
         private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
         private val esClientFactory = JestClientFactory()
@@ -121,18 +124,8 @@ class ElasticsearchSinkTask() : SinkTask() {
             }
         }
 
-        val timeout = Timeout(requestTimeoutMs)
         records.forEach {
-            val action = processRecord(it)
-            try {
-                timeout.reset()
-                if (!sink.put(action.action, action.hash, isPaused, timeout)) {
-                    pause()
-                }
-                processedRecords += 1
-            } catch (e: IllegalArgumentException) {
-                logger.error("Malformed message", e)
-            }
+            processRecord(sink, it)
         }
     }
 
@@ -140,9 +133,19 @@ class ElasticsearchSinkTask() : SinkTask() {
         return sink ?: throw ConnectException("Sink is not initialized")
     }
 
-    private fun processRecord(record: SinkRecord): ActionAndHash {
+    private fun processRecord(sink: Sink, record: SinkRecord) {
         val index = topicToIndexMap[record.topic()]
         val value = record.value()
+        if (value is List<*>) {
+            value.forEach {
+                processValue(sink, it, index, record)
+            }
+        } else {
+            processValue(sink, value, index, record)
+        }
+    }
+
+    private fun processValue(sink: Sink, value: Any?, index: String?, record: SinkRecord) {
         val bulkAction = when (value) {
             is Map<*,*> -> {
                 jsonProcessor.process(value, index)
@@ -153,7 +156,7 @@ class ElasticsearchSinkTask() : SinkTask() {
             else -> {
                 throw IllegalArgumentException(
                         "Expected one of [${Map::class.java}, ${Message::class.java}] " +
-                                "but was: ${value.javaClass}"
+                                "but was: ${value?.javaClass}"
                 )
             }
         }
@@ -173,19 +176,27 @@ class ElasticsearchSinkTask() : SinkTask() {
                 Objects.hash(record.topic(), record.kafkaPartition())
             }
         }
-        return ActionAndHash(bulkAction, hash)
+        try {
+            requestTimeout.reset()
+            if (!sink.put(bulkAction, hash, isPaused, requestTimeout)) {
+                pause()
+            }
+            processedRecords += 1
+        } catch (e: IllegalArgumentException) {
+            logger.error("Malformed message", e)
+        }
     }
 
     override fun preCommit(
             currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
     ): MutableMap<TopicPartition, OffsetAndMetadata>
     {
-        val timeout = Timeout(flushTimeoutMs)
         val sink = getSink()
         if (isPaused) {
             return EMPTY_OFFSETS
         }
-        if (!sink.flush(timeout)) {
+        flushTimeout.reset()
+        if (!sink.flush(flushTimeout)) {
             pause()
             return EMPTY_OFFSETS
         }

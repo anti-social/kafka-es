@@ -77,6 +77,7 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
             CONFIG.define(
                     TOPIC_INDEX_MAP,
                     ConfigDef.Type.LIST,
+                    emptyList<String>(),
                     ConfigDef.Importance.HIGH,
                     "A map from Kafka topic name to the destination Elasticsearch index, " +
                             "represented as a list of ``topic:index`` pairs."
