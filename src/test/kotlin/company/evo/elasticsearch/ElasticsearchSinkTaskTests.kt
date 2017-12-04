@@ -77,12 +77,6 @@ class ElasticsearchSinkTaskTests {
                 .isInstanceOf(ConnectException::class.java)
                 .hasCauseInstanceOf(ConfigException::class.java)
                 .hasStackTraceContaining("\"connection.url\"")
-        assertThatThrownBy {
-            task.start(mutableMapOf("connection.url" to "localhost:9200"))
-        }
-                .isInstanceOf(ConnectException::class.java)
-                .hasCauseInstanceOf(ConfigException::class.java)
-                .hasStackTraceContaining("\"topic.index.map\"")
     }
 
     @Test fun testPutEmptyList() {
