@@ -192,13 +192,13 @@ internal class SinkWorker(
                 // TODO(Save non retriable documents into dedicated topic)
                 logger.error(formatFailedItems(
                         "Some documents weren't indexed, skipping",
-                        failedItems
+                        bulkRequest.uri, failedItems
                 ))
             }
             if (retriableItems.isNotEmpty()) {
                 logger.error(formatFailedItems(
                         "Some documents weren't indexed, will retry",
-                        retriableItems))
+                         bulkRequest.uri, retriableItems))
             }
         }
         if (successItems > 0) {
@@ -208,10 +208,10 @@ internal class SinkWorker(
     }
 
     private fun formatFailedItems(
-            message: String,
+            message: String, uri: String,
             items: Collection<BulkResult.BulkResultItem>
     ): String {
-        return "$message:\n" +
+        return "$uri: $message:\n" +
                 items.map { "\t[${it.index}/${it.type}/${it.id}] ${it.errorType}: ${it.errorReason}" }
                         .joinToString("\n")
     }
