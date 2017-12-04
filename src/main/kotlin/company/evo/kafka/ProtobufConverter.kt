@@ -19,6 +19,24 @@ class ProtobufConverter : Converter {
     lateinit private var config: Config
     lateinit private var parser: Method
 
+    class Config(props: MutableMap<String, *>) :
+            AbstractConfig(CONFIG, props)
+    {
+        companion object {
+            val PROTOBUF_CLASS = "protobuf.class"
+
+            val CONFIG = ConfigDef()
+            init {
+                CONFIG.define(
+                        PROTOBUF_CLASS,
+                        ConfigDef.Type.CLASS,
+                        ConfigDef.Importance.HIGH,
+                        "The full path to the protobuf class."
+                )
+            }
+        }
+    }
+
     override fun configure(configs: MutableMap<String, *>, isKey: Boolean) {
         config = Config(configs)
         val protoClass = config.getClass(Config.PROTOBUF_CLASS)
@@ -44,22 +62,6 @@ class ProtobufConverter : Converter {
         } catch (e: InvocationTargetException) {
             throw DataException("Cannot deserialize data: ${e.targetException}",
                     e.targetException)
-        }
-    }
-}
-
-private class Config(props: MutableMap<String, *>) :
-        AbstractConfig(CONFIG, props)
-{
-    companion object {
-        val PROTOBUF_CLASS = "protobuf.class"
-
-        val CONFIG = ConfigDef()
-        init {
-            CONFIG.define(
-                    PROTOBUF_CLASS, ConfigDef.Type.CLASS, ConfigDef.Importance.HIGH,
-                    "The full path to the protobuf class."
-            )
         }
     }
 }
