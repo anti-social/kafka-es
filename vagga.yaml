@@ -1,7 +1,7 @@
 _default:
   gradle-home: &gradle-home /work/.gradle
   cmd-opts: &cmd-opts
-    container: kotlin-sdk
+    container: jdk8
     user-id: 1
     external-user-id: 0
     prerequisites: [_mk-gradle-user-home]
@@ -9,7 +9,7 @@ _default:
       /work/.gradle/caches: !CacheDir gradle-cache
 
 containers:
-  kotlin-sdk:
+  jdk8:
     environ:
       JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
       GRADLE_USER_HOME: *gradle-home
@@ -24,17 +24,10 @@ containers:
       subdir: gradle-4.2.1
       path: /opt/gradle
     - !Sh ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle
-    - !EnsureDir /opt/kotlinc
-    - !Unzip
-      url: https://github.com/JetBrains/kotlin/releases/download/v1.1.60/kotlin-compiler-1.1.60.zip
-      sha256: 49870ecd8cc0f9c22aa920a23a45d94fa701c612bcb4ab1e5be05d91d8857413
-      subdir: kotlinc
-      path: /opt/kotlinc
-    - !Sh ln -s /opt/kotlinc/bin/kotlinc /usr/local/bin/kotlinc
 
 commands:
   _mk-gradle-user-home: !Command
-    container: kotlin-sdk
+    container: jdk8
     run: mkdir -p $GRADLE_USER_HOME/caches
 
   gradle: !Command
