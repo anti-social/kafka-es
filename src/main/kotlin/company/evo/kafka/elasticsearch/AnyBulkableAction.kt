@@ -1,4 +1,4 @@
-package company.evo.elasticsearch
+package company.evo.kafka.elasticsearch
 
 import io.searchbox.action.*
 import io.searchbox.core.*

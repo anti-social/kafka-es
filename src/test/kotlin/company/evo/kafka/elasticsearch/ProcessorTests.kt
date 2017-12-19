@@ -1,4 +1,4 @@
-package company.evo.elasticsearch
+package company.evo.kafka.elasticsearch
 
 import com.google.gson.Gson
 import com.google.protobuf.Int32Value

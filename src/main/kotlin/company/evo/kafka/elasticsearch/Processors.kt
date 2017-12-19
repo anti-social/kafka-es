@@ -1,4 +1,4 @@
-package company.evo.elasticsearch
+package company.evo.kafka.elasticsearch
 
 import com.google.protobuf.Message
 import com.google.protobuf.MessageOrBuilder

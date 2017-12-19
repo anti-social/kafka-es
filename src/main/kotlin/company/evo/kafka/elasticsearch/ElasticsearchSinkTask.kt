@@ -1,4 +1,4 @@
-package company.evo.elasticsearch
+package company.evo.kafka.elasticsearch
 
 import java.util.Objects
 
