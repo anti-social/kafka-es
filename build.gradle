@@ -7,9 +7,7 @@ buildscript {
     ext.kotlinVersion = '1.2.10'
 
     repositories {
-        // Temporary fix https://issues.sonatype.org/browse/MVNCENTRAL-2870
-        // mavenCentral()
-        maven { url 'https://repo.maven.apache.org/maven2' }
+        mavenCentral()
     }
 
     dependencies {
