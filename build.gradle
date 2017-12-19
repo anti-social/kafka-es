@@ -4,7 +4,7 @@
 //}
 
 buildscript {
-    ext.kotlinVersion = '1.1.60'
+    ext.kotlinVersion = '1.2.10'
 
     repositories {
         // Temporary fix https://issues.sonatype.org/browse/MVNCENTRAL-2870
