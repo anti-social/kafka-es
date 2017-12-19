@@ -85,12 +85,16 @@ commands:
   compile: !Command
     <<: *cmd-opts
     description: Compiles all source sets
-    run: [gradle, classes, -x, processResources]
+    run: [gradle, classes]
 
   compile-test: !Command
     <<: *cmd-opts
     description: Compiles all test source sets
-    run: [gradle, testClasses, -x, processTestResources]
+    run: [gradle, testClasses]
+
+  proto: !Command
+    <<: *cmd-opts
+    run: [gradle, generateProto]
 
   doc: !Command
     <<: *cmd-opts
