@@ -47,8 +47,6 @@ class ElasticsearchSinkTask() : SinkTask() {
         private val EMPTY_OFFSETS: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap()
     }
 
-    internal class ActionAndHash(val action: AnyBulkableAction, val hash: Int)
-
     internal constructor(esClient: JestClient) : this() {
         this.testEsClient = esClient
     }
