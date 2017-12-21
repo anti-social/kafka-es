@@ -20,13 +20,10 @@ internal class Sink(
         queueSize: Int,
         maxInFlightRequests: Int,
         delayBeetweenRequests: Long,
-        heartbeatIntervalMs: Long,
         private val retryIntervalMs: Long,
         private val maxRetryIntervalMs: Long
 )
 {
-    private val heartbeat = Heartbeat(esClient, heartbeatIntervalMs)
-    private val heartbeatThread: Thread
     private val sinkContexts: List<SinkWorker.Context>
     private val sinkThreads: Collection<Thread>
     private val retryingCount = AtomicInteger(0)
@@ -37,14 +34,8 @@ internal class Sink(
     }
 
     init {
-        heartbeatThread = Thread(
-                heartbeat,
-                "elastic-heartbeat"
-        )
-        heartbeatThread.start()
         val sinks = (0 until maxInFlightRequests).map {
             val context = SinkWorker.Context(
-                    heartbeat,
                     esClient,
                     bulkSize,
                     queueSize,
@@ -76,7 +67,6 @@ internal class Sink(
     }
 
     fun close () {
-        heartbeatThread.interrupt()
         sinkThreads.forEach { it.interrupt() }
         tasks.clear()
         retryingCount.set(0)
@@ -108,7 +98,7 @@ internal class Sink(
     }
 
     fun waitingElastic(): Boolean {
-        return heartbeat.isWaitingElastic() || retryingCount.get() > 0
+        return retryingCount.get() > 0
     }
 
     fun put(action: AnyBulkableAction, hash: Int, paused: Boolean, timeout: Timeout): Boolean {

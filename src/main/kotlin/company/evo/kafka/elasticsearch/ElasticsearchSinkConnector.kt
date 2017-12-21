@@ -61,7 +61,7 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val RETRY_INTERVAL = "retry.interval"
         val RETRY_INTERVAL_DEFAULT = 30_000L
         val MAX_RETRY_INTERVAL = "max.retry.interval"
-        val MAX_RETRY_INTERVAL_DEFAULT = 3600_000L
+        val MAX_RETRY_INTERVAL_DEFAULT = 300_000L
         val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include.default.values"
         val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = true
 
@@ -121,8 +121,8 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                     HEARTBEAT_INTERVAL,
                     ConfigDef.Type.LONG,
                     HEARTBEAT_INTERVAL_DEFAULT,
-                    ConfigDef.Importance.MEDIUM,
-                    "Interval between heartbeets when Elasticsearch is unavailable."
+                    ConfigDef.Importance.LOW,
+                    "(Deprecated) Interval between heartbeats when Elasticsearch is unavailable."
             )
             CONFIG.define(
                     RETRY_INTERVAL,

@@ -88,7 +88,6 @@ class ElasticsearchSinkTask() : SinkTask() {
                     queueSize = config.getInt(Config.QUEUE_SIZE),
                     maxInFlightRequests = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS),
                     delayBeetweenRequests = config.getLong(Config.DELAY_BEETWEEN_REQUESTS),
-                    heartbeatIntervalMs = config.getLong(Config.HEARTBEAT_INTERVAL),
                     retryIntervalMs = config.getLong(Config.RETRY_INTERVAL),
                     maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
             )
@@ -112,7 +111,7 @@ class ElasticsearchSinkTask() : SinkTask() {
     }
 
     override fun put(records: MutableCollection<SinkRecord>) {
-        if (records.size > 0) {
+        if (records.isNotEmpty()) {
             logger.debug("Recieved ${records.size} records")
         }
         val sink = getSink()

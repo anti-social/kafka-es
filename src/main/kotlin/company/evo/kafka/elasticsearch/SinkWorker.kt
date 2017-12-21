@@ -20,7 +20,6 @@ import company.evo.kafka.Timeout
 
 
 internal class SinkWorker(
-        private val heartbeat: Heartbeat,
         private val esClient: JestClient,
         private val retryIntervalMs: Long,
         private val maxRetryIntervalMs: Long,
@@ -31,7 +30,7 @@ internal class SinkWorker(
     companion object {
         private val logger = LoggerFactory.getLogger(SinkWorker::class.java)
 
-        // TODO(Review all the exceptions)
+        // TODO Review all the exceptions
         val NON_RETRIABLE_ES_ERRORS = setOf(
                 "elasticsearch_parse_exception",
                 "parsing_exception",
@@ -40,7 +39,6 @@ internal class SinkWorker(
     }
 
     class Context(
-            private val heartbeat: Heartbeat,
             private val esClient: JestClient,
             private val bulkSize: Int,
             queueSize: Int,
@@ -62,7 +60,6 @@ internal class SinkWorker(
         private fun createTask(actions: List<AnyBulkableAction>): FutureTask<Boolean> {
             return FutureTask(
                     SinkWorker(
-                            heartbeat,
                             esClient,
                             retryIntervalMs,
                             maxRetryIntervalMs,
@@ -124,34 +121,31 @@ internal class SinkWorker(
 
     override fun call(): Boolean {
         var retries = 0
-        var wereRetries = false
         try {
-            while (actions.isNotEmpty()) {
+            while (true) {
                 if (retries > 0) {
                     if (retries == 1) {
-                        wereRetries = true
                         retryingCount.incrementAndGet()
                     }
                     val retryIntervalMs = minOf(
                             (retryIntervalMs * Math.pow(2.0, retries.toDouble() - 1)).toLong(),
                             maxRetryIntervalMs
                     )
-                    logger.debug("Sleeping for $retryIntervalMs ms")
+                    logger.debug("Sleeping for $retryIntervalMs ms before retry")
                     Thread.sleep(retryIntervalMs)
                 }
                 try {
                     actions = sendBulk(actions)
-                    retries += 1
+                    if (actions.isEmpty()) {
+                        break
+                    }
                 } catch (e: IOException) {
-                    logger.info("Error when sending actions to elasticsearch: $e")
-                    heartbeat.start()
-                    logger.info("Resumed indexing")
-                    // Reset retry interval
-                    retries = 0
+                    logger.warn("Error when sending actions to elasticsearch: $e")
                 }
+                retries += 1
             }
         } finally {
-            if (wereRetries) {
+            if (retries > 0) {
                 retryingCount.decrementAndGet()
             }
         }
@@ -175,7 +169,7 @@ internal class SinkWorker(
         } else {
             val failedItems = ArrayList<BulkResult.BulkResultItem>()
             val retriableItems = ArrayList<BulkResult.BulkResultItem>()
-            // TODO(Fix Jest to correctly process missing id (for create operation))
+            // TODO Fix Jest to correctly process missing id (for create operation)
             bulkResult.items.zip(actions).forEach { (item, action) ->
                 if (item.error == null) {
                     successItems += 1
@@ -189,7 +183,7 @@ internal class SinkWorker(
                 }
             }
             if (failedItems.isNotEmpty()) {
-                // TODO(Save non retriable documents into dedicated topic)
+                // TODO Save non retriable documents into dedicated topic
                 logger.error(formatFailedItems(
                         "Some documents weren't indexed, skipping",
                         bulkRequest.uri, failedItems
