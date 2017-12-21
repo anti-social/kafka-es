@@ -143,7 +143,7 @@ internal class SinkWorker(
                     actions = sendBulk(actions)
                     retries += 1
                 } catch (e: IOException) {
-                    logger.info("Error when sending actions to elasticsearch", e)
+                    logger.info("Error when sending actions to elasticsearch: $e")
                     heartbeat.start()
                     logger.info("Resumed indexing")
                     // Reset retry interval
