@@ -163,7 +163,7 @@ internal class SinkWorker(
         }
         val bulkRequest = Bulk.Builder()
                 .addAction(actions)
-                .build() as Bulk
+                .build()
         val bulkResult = esClient.execute(bulkRequest)
         val retriableActions = ArrayList<AnyBulkableAction>()
         var successItems = 0
@@ -208,7 +208,7 @@ internal class SinkWorker(
             message: String, uri: String,
             items: Collection<BulkResult.BulkResultItem>
     ): String {
-        return "[$esUrl]$uri: $message:\n" +
+        return "$esUrl$uri: $message:\n" +
                 items.joinToString("\n") {
                     "\t[${it.index}/${it.type}/${it.id}] ${it.errorType}: ${it.errorReason}"
                 }

@@ -42,7 +42,6 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     companion object {
         private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
-        private val esClientFactory = JestClientFactory()
 
         private val EMPTY_OFFSETS: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap()
     }
@@ -70,15 +69,16 @@ class ElasticsearchSinkTask() : SinkTask() {
                 testEsClient
             } else {
                 logger.info("Initializing Elasticsearch client for cluster: $esUrl")
-                esClientFactory
-                        .setHttpClientConfig(
-                                HttpClientConfig.Builder(esUrl)
-                                        .multiThreaded(true)
-                                        .connTimeout(requestTimeoutMs.toInt())
-                                        .readTimeout(requestTimeoutMs.toInt())
-                                        .build()
-                        )
-                esClientFactory.`object`
+                JestClientFactory().apply {
+                    setHttpClientConfig(
+                            HttpClientConfig.Builder(esUrl)
+                                    .multiThreaded(true)
+                                    .connTimeout(requestTimeoutMs.toInt())
+                                    .readTimeout(requestTimeoutMs.toInt())
+                                    .build()
+                    )
+                }
+                        .`object`
             }
             this.esClient = esClient
             this.sink = Sink(
