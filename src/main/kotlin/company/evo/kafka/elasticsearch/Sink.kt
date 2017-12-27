@@ -15,13 +15,14 @@ import company.evo.kafka.Timeout
 
 
 internal class Sink(
-        private val esClient: JestClient,
-        private val bulkSize: Int,
+        esUrl: List<String>,
+        esClient: JestClient,
+        bulkSize: Int,
         queueSize: Int,
         maxInFlightRequests: Int,
         delayBeetweenRequests: Long,
-        private val retryIntervalMs: Long,
-        private val maxRetryIntervalMs: Long
+        retryIntervalMs: Long,
+        maxRetryIntervalMs: Long
 )
 {
     private val sinkContexts: List<SinkWorker.Context>
@@ -36,6 +37,7 @@ internal class Sink(
     init {
         val sinks = (0 until maxInFlightRequests).map {
             val context = SinkWorker.Context(
+                    esUrl,
                     esClient,
                     bulkSize,
                     queueSize,

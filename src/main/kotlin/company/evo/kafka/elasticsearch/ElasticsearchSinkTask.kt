@@ -69,6 +69,7 @@ class ElasticsearchSinkTask() : SinkTask() {
             val esClient = if (testEsClient != null) {
                 testEsClient
             } else {
+                logger.info("Initializing Elasticsearch client for cluster: $esUrl")
                 esClientFactory
                         .setHttpClientConfig(
                                 HttpClientConfig.Builder(esUrl)
@@ -81,6 +82,7 @@ class ElasticsearchSinkTask() : SinkTask() {
             }
             this.esClient = esClient
             this.sink = Sink(
+                    esUrl,
                     esClient,
                     bulkSize = config.getInt(Config.BULK_SIZE),
                     queueSize = config.getInt(Config.QUEUE_SIZE),

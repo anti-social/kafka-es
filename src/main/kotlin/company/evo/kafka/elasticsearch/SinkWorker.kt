@@ -20,6 +20,7 @@ import company.evo.kafka.Timeout
 
 
 internal class SinkWorker(
+        private val esUrl: List<String>,
         private val esClient: JestClient,
         private val retryIntervalMs: Long,
         private val maxRetryIntervalMs: Long,
@@ -39,6 +40,7 @@ internal class SinkWorker(
     }
 
     class Context(
+            private val esUrl: List<String>,
             private val esClient: JestClient,
             private val bulkSize: Int,
             queueSize: Int,
@@ -60,6 +62,7 @@ internal class SinkWorker(
         private fun createTask(actions: List<AnyBulkableAction>): FutureTask<Boolean> {
             return FutureTask(
                     SinkWorker(
+                            esUrl,
                             esClient,
                             retryIntervalMs,
                             maxRetryIntervalMs,
@@ -205,8 +208,9 @@ internal class SinkWorker(
             message: String, uri: String,
             items: Collection<BulkResult.BulkResultItem>
     ): String {
-        return "$uri: $message:\n" +
-                items.map { "\t[${it.index}/${it.type}/${it.id}] ${it.errorType}: ${it.errorReason}" }
-                        .joinToString("\n")
+        return "[$esUrl]$uri: $message:\n" +
+                items.joinToString("\n") {
+                    "\t[${it.index}/${it.type}/${it.id}] ${it.errorType}: ${it.errorReason}"
+                }
     }
 }
