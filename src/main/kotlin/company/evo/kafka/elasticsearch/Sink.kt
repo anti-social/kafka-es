@@ -1,5 +1,6 @@
 package company.evo.kafka.elasticsearch
 
+import java.util.LinkedList
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -28,7 +29,7 @@ internal class Sink(
     private val sinkContexts: List<SinkWorker.Context>
     private val sinkThreads: Collection<Thread>
     private val retryingCount = AtomicInteger(0)
-    private val tasks = ArrayList<FutureTask<Boolean>>(queueSize * maxInFlightRequests)
+    private val tasks = LinkedList<FutureTask<Boolean>>()
 
     companion object {
         private val logger = LoggerFactory.getLogger(Sink::class.java)
@@ -90,8 +91,10 @@ internal class Sink(
                 }
             }
             // and wait all tasks finished
-            tasks.forEach { task ->
+            val tasksIter = tasks.iterator()
+            tasksIter.forEach { task ->
                 task.get(timeout.driftOrFail(), TimeUnit.MILLISECONDS)
+                tasksIter.remove()
             }
         } catch (e: TimeoutException) {
             return false
