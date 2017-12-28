@@ -99,7 +99,7 @@ class ElasticsearchSinkTask() : SinkTask() {
     }
 
     override fun stop() {
-        logger.debug("Stopping ElasticsearchSinkTask")
+        logger.info("Stopping ElasticsearchSinkTask")
         sink?.close()
         esClient?.close()
         isPaused = false
