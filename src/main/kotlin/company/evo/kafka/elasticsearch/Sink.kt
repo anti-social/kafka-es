@@ -29,7 +29,7 @@ internal class Sink(
     private val sinkContexts: List<SinkWorker.Context>
     private val sinkThreads: Collection<Thread>
     private val retryingCount = AtomicInteger(0)
-    private val tasks = LinkedList<FutureTask<Boolean>>()
+    private val tasks = LinkedList<FutureTask<Unit>>()
 
     companion object {
         private val logger = LoggerFactory.getLogger(Sink::class.java)

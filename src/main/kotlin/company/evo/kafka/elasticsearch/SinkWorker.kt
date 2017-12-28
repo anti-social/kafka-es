@@ -26,7 +26,7 @@ internal class SinkWorker(
         private val maxRetryIntervalMs: Long,
         private var actions: Collection<AnyBulkableAction>,
         private val retryingCount: AtomicInteger
-) : Callable<Boolean> {
+) : Callable<Unit> {
 
     companion object {
         private val logger = LoggerFactory.getLogger(SinkWorker::class.java)
@@ -49,17 +49,17 @@ internal class SinkWorker(
             private val retryingCount: AtomicInteger
     ) {
         private val actionChunks = LinkedList<ArrayList<AnyBulkableAction>>()
-        private val queue = ArrayBlockingQueue<FutureTask<Boolean>>(queueSize)
+        private val queue = ArrayBlockingQueue<FutureTask<Unit>>(queueSize)
 
         sealed class AddActionResult {
             object Ok : AddActionResult()
             object Timeout : AddActionResult()
-            class Task(val task: FutureTask<Boolean>) : AddActionResult()
+            class Task(val task: FutureTask<Unit>) : AddActionResult()
         }
 
-        class FlushResult(val tasks: Collection<FutureTask<Boolean>>, val isTimedOut: Boolean)
+        class FlushResult(val tasks: Collection<FutureTask<Unit>>, val isTimedOut: Boolean)
 
-        private fun createTask(actions: List<AnyBulkableAction>): FutureTask<Boolean> {
+        private fun createTask(actions: List<AnyBulkableAction>): FutureTask<Unit> {
             return FutureTask(
                     SinkWorker(
                             esUrl,
@@ -74,7 +74,7 @@ internal class SinkWorker(
 
         fun pendingBulksCount(): Int = actionChunks.size
 
-        fun takeTask(): FutureTask<Boolean> {
+        fun takeTask(): FutureTask<Unit> {
             logger.trace("Waiting task ...")
             return queue.take()
         }
@@ -102,7 +102,7 @@ internal class SinkWorker(
         }
 
         fun flush(timeout: Timeout): FlushResult {
-            val tasks = ArrayList<FutureTask<Boolean>>()
+            val tasks = ArrayList<FutureTask<Unit>>()
             val chunksIterator = actionChunks.iterator()
             for (actions in chunksIterator) {
                 val task = createTask(actions)
@@ -122,7 +122,7 @@ internal class SinkWorker(
         }
     }
 
-    override fun call(): Boolean {
+    override fun call() {
         var retries = 0
         try {
             while (true) {
@@ -152,7 +152,6 @@ internal class SinkWorker(
                 retryingCount.decrementAndGet()
             }
         }
-        return true
     }
 
     private fun sendBulk(
