@@ -5,6 +5,7 @@ import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.connector.Task
 import org.apache.kafka.connect.errors.ConnectException
+import org.apache.kafka.connect.runtime.ConnectorConfig
 import org.apache.kafka.connect.runtime.WorkerConfig
 import org.apache.kafka.connect.sink.SinkConnector
 
@@ -151,7 +152,13 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                     ConfigDef.Type.LONG,
                     WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT,
                     ConfigDef.Importance.LOW,
-                    ""
+                    "Maximum timeout to flush pending actions."
+            )
+            CONFIG.define(
+                    ConnectorConfig.NAME_CONFIG,
+                    ConfigDef.Type.STRING,
+                    ConfigDef.Importance.HIGH,
+                    "Connector name. Used in log messages."
             )
         }
     }

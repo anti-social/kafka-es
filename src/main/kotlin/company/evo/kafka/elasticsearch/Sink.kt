@@ -16,6 +16,7 @@ import company.evo.kafka.Timeout
 
 
 internal class Sink(
+        name: String,
         esUrl: List<String>,
         esClient: JestClient,
         bulkSize: Int,
@@ -46,7 +47,7 @@ internal class Sink(
                     maxRetryIntervalMs,
                     retryingCount
             )
-            context to thread(name = "elastic-sink-$it") {
+            context to thread(name = "$name-sink-$it") {
                 val timeout = Timeout(delayBeetweenRequests)
                 while (!Thread.interrupted()) {
                     try {

@@ -20,11 +20,13 @@ import org.apache.kafka.connect.sink.SinkTask
 import org.slf4j.LoggerFactory
 
 import company.evo.kafka.Timeout
+import org.apache.kafka.connect.runtime.ConnectorConfig
 
 
 class ElasticsearchSinkTask() : SinkTask() {
     private var testEsClient: JestClient? = null
 
+    private lateinit var name: String
     private var topicToIndexMap = emptyMap<String, String>()
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
     private var requestTimeoutMs = Config.REQUEST_TIMEOUT_DEFAULT
@@ -54,6 +56,7 @@ class ElasticsearchSinkTask() : SinkTask() {
         logger.debug("Starting ElasticsearchSinkTask")
         try {
             val config = Config(props)
+            this.name = config.getString(ConnectorConfig.NAME_CONFIG)
             this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
             // 90% from the offset commit timeout
             this.flushTimeoutMs = 90 * config.getLong(WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG) / 100
@@ -68,7 +71,7 @@ class ElasticsearchSinkTask() : SinkTask() {
             val esClient = if (testEsClient != null) {
                 testEsClient
             } else {
-                logger.info("Initializing Elasticsearch client for cluster: $esUrl")
+                logger.info("[$name] Initializing Elasticsearch client for cluster: $esUrl")
                 JestClientFactory().apply {
                     setHttpClientConfig(
                             HttpClientConfig.Builder(esUrl)
@@ -82,6 +85,7 @@ class ElasticsearchSinkTask() : SinkTask() {
             }
             this.esClient = esClient
             this.sink = Sink(
+                    name,
                     esUrl,
                     esClient,
                     bulkSize = config.getInt(Config.BULK_SIZE),
@@ -99,7 +103,7 @@ class ElasticsearchSinkTask() : SinkTask() {
     }
 
     override fun stop() {
-        logger.info("Stopping ElasticsearchSinkTask")
+        logger.info("[$name] Stopping ElasticsearchSinkTask")
         sink?.close()
         esClient?.close()
         isPaused = false
@@ -112,7 +116,7 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     override fun put(records: MutableCollection<SinkRecord>) {
         if (records.isNotEmpty()) {
-            logger.debug("Recieved ${records.size} records")
+            logger.debug("[$name] Recieved ${records.size} records")
         }
         val sink = getSink()
         if (isPaused) {
@@ -182,7 +186,7 @@ class ElasticsearchSinkTask() : SinkTask() {
             }
             processedRecords += 1
         } catch (e: IllegalArgumentException) {
-            logger.error("Malformed message", e)
+            logger.error("[$name] Malformed message", e)
         }
     }
 
@@ -200,7 +204,7 @@ class ElasticsearchSinkTask() : SinkTask() {
             return EMPTY_OFFSETS
         }
         if (processedRecords > 0) {
-            logger.info("Committing $processedRecords processed records")
+            logger.info("[$name] Committing $processedRecords processed records")
         }
         processedRecords = 0
         return super.preCommit(currentOffsets)
@@ -212,12 +216,12 @@ class ElasticsearchSinkTask() : SinkTask() {
     private fun pause() {
         context.pause(*context.assignment().toTypedArray())
         isPaused = true
-        logger.info("Paused consuming new records")
+        logger.info("[$name] Paused consuming new records")
     }
 
     private fun resume() {
         context.resume(*context.assignment().toTypedArray())
         isPaused = false
-        logger.info("Resumed consuming new records")
+        logger.info("[$name] Resumed consuming new records")
     }
 }
