@@ -49,6 +49,7 @@ class ElasticsearchSinkTaskTests {
         val task = ElasticsearchSinkTask(esClient)
         val TOPIC = "test"
         val TASK_PROPS = mutableMapOf(
+                "name" to "test-connector",
                 "connection.url" to "localhost:9200",
                 "topic.index.map" to "test:test_index"
         )
