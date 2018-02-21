@@ -35,3 +35,7 @@ message Script {
     }
     google.protobuf.Struct params = 5;
 }
+
+message DeleteMessage {
+    BulkAction action = 1;
+}
