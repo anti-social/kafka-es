@@ -26,7 +26,7 @@ import org.apache.kafka.connect.runtime.ConnectorConfig
 class ElasticsearchSinkTask() : SinkTask() {
     private var testEsClient: JestClient? = null
 
-    private lateinit var name: String
+    private var name: String = "unknown"
     private var topicToIndexMap = emptyMap<String, String>()
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
     private var requestTimeoutMs = Config.REQUEST_TIMEOUT_DEFAULT
