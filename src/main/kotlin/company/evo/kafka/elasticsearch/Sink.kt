@@ -61,7 +61,9 @@ internal class Sink(
                         }
                         task.run()
                         timeout.reset()
-                    } catch (e: InterruptedException) {}
+                    } catch (e: InterruptedException) {
+                        return@thread
+                    }
                 }
             }
         }.unzip()
