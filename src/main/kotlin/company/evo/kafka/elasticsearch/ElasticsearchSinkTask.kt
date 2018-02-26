@@ -116,7 +116,7 @@ class ElasticsearchSinkTask() : SinkTask() {
 
     override fun put(records: MutableCollection<SinkRecord>) {
         if (records.isNotEmpty()) {
-            logger.debug("[$name] Recieved ${records.size} records")
+            logger.debug("[$name] Received ${records.size} records")
         }
         val sink = getSink()
         if (isPaused) {
