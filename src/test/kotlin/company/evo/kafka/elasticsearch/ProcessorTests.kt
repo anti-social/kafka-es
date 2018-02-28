@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test
 
 import company.evo.kafka.TestProto
 import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
+import company.evo.kafka.elasticsearch.BulkActionProto.DeleteMessage
 import company.evo.kafka.elasticsearch.BulkActionProto.Script
 
 
@@ -292,7 +293,7 @@ class ProtobufProcessorTests {
     @Test
     fun testDelete() {
         val action = processorNoDefaults.process(
-                TestProto.TestMessage.newBuilder()
+                DeleteMessage.newBuilder()
                         .setAction(BulkAction.newBuilder()
                                 .setOpType(BulkAction.OpType.DELETE)
                                 .setType("test").setId("123").setRouting("4")

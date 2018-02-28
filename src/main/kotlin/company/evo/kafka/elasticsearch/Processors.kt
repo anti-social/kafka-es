@@ -61,20 +61,20 @@ internal class ProtobufProcessor(
         val descriptor = message.descriptorForType
         val actionField = descriptor.findFieldByName("action") ?:
                 throw IllegalArgumentException("Message must contain [action] field")
-        val sourceField = descriptor.findFieldByName("source") ?:
-                throw IllegalArgumentException("Message must contain [source] field")
         val action = message.getField(actionField) as? BulkAction ?:
                 throw IllegalArgumentException(
                         "[action] field must be an instance of the ${BulkAction::class.java}")
-        val source = message.getField(sourceField) as? Message ?:
-                throw IllegalArgumentException(
-                        "[source] field must be an instance of the ${Message::class.java}")
         val actionBuilder = AnyBulkableAction.Builder(action)
         if (index?.isNotEmpty() == true) {
             actionBuilder.index(index)
         }
         when (action.opType) {
             BulkAction.OpType.INDEX, BulkAction.OpType.UPDATE, BulkAction.OpType.CREATE -> {
+                val sourceField = descriptor.findFieldByName("source") ?:
+                        throw IllegalArgumentException("Message must contain [source] field")
+                val source = message.getField(sourceField) as? Message ?:
+                        throw IllegalArgumentException(
+                                "[source] field must be an instance of the ${Message::class.java}")
                 actionBuilder.setSource(jsonPrinter.print(source))
             }
             BulkAction.OpType.DELETE -> {}
