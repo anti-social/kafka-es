@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.BeforeEach
 
 import company.evo.kafka.TestProto.TestDocument
+import org.apache.kafka.connect.data.SchemaAndValue
 
 
 class ProtobufConverterTests {
@@ -74,6 +75,12 @@ class ProtobufConverterTests {
     }
 
     @Test
+    fun testToConnectDataNullValue() {
+        assertThat(converter.toConnectData("<test>", null))
+                .isEqualTo(SchemaAndValue.NULL)
+    }
+
+    @Test
     fun testToConnectDataInvalidData() {
         assertThatThrownBy {
             converter.toConnectData("<test>", "invalid data".toByteArray())
@@ -88,6 +95,12 @@ class ProtobufConverterTests {
         val value = TestDocument.parseFrom(data)
         assertThat(value.id).isEqualTo(123)
         assertThat(value.name).isEqualTo("Teo")
+    }
+
+    @Test
+    fun testFromConnectDataNullValue() {
+        assertThat(converter.fromConnectData("<test>", null, null))
+                .isNull()
     }
 
     @Test

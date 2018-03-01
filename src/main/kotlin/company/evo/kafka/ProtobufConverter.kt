@@ -48,14 +48,20 @@ class ProtobufConverter : Converter {
         }
     }
 
-    override fun fromConnectData(topic: String, schema: Schema?, value: Any): ByteArray {
+    override fun fromConnectData(topic: String, schema: Schema?, value: Any?): ByteArray? {
+        if (value == null) {
+            return null
+        }
         if (value !is MessageLite) {
             throw DataException("Value must be instance of com.google.protobuf.MessageLite")
         }
         return value.toByteArray()
     }
 
-    override fun toConnectData(topic: String, value: ByteArray): SchemaAndValue {
+    override fun toConnectData(topic: String, value: ByteArray?): SchemaAndValue {
+        if (value == null) {
+            return SchemaAndValue.NULL
+        }
         try {
             val msg = parser.invoke(null, value)
             return SchemaAndValue(null, msg)
