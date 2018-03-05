@@ -74,9 +74,9 @@ internal class SinkWorker(
 
         fun pendingBulksCount(): Int = actionChunks.size
 
-        fun takeTask(): FutureTask<Unit> {
-            logger.trace("Waiting task ...")
-            return queue.take()
+        fun takeTask(timeoutMs: Long): FutureTask<Unit>? {
+            logger.trace("Waiting for a task ...")
+            return queue.poll(timeoutMs, TimeUnit.MILLISECONDS)
         }
 
         internal fun addAction(action: AnyBulkableAction, paused: Boolean, timeout: Timeout): AddActionResult {

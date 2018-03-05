@@ -34,6 +34,8 @@ internal class Sink(
 
     companion object {
         private val logger = LoggerFactory.getLogger(Sink::class.java)
+
+        private val MAX_QUEUE_TIMEOUT_MS = 60_000L
     }
 
     init {
@@ -51,7 +53,8 @@ internal class Sink(
                 val timeout = Timeout(delayBeetweenRequests)
                 while (!Thread.interrupted()) {
                     try {
-                        val task = context.takeTask()
+                        val task = context.takeTask(MAX_QUEUE_TIMEOUT_MS)
+                                ?: continue
                         if (delayBeetweenRequests > 0) {
                             val sleepDelay = timeout.drift()
                             if (sleepDelay > 0) {
