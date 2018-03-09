@@ -30,7 +30,7 @@ repositories {
 }
 
 ext {
-    kafkaVersion = '1.0.0'
+    kafkaVersion = '1.0.1'
     jestVersion = '5.3.3'
     protobufVersion = '3.4.0'
     junitJupiterVersion = '5.0.1'
