@@ -49,6 +49,7 @@ dependencies {
     protobuf "com.google.protobuf:protobuf-java:$protobufVersion"
 
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+    compile "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
     compile "org.apache.kafka:connect-api:$kafkaVersion"
     compile "org.apache.kafka:connect-json:$kafkaVersion"
     compile "org.apache.kafka:connect-runtime:$kafkaVersion"
