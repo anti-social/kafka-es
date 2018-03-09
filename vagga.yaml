@@ -34,7 +34,9 @@ containers:
     - !UbuntuRelease {codename: artful}
     - !UbuntuUniverse
     - !Install
+      - ca-certificates-java
       - openjdk-9-jdk-headless
+    - !Sh update-ca-certificates
     - !*Unpack
       - *install-gradle
 
