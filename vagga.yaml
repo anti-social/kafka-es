@@ -6,6 +6,7 @@ _default:
     external-user-id: 0
     prerequisites: [_mk-gradle-user-home]
     volumes:
+      /tmp: !Tmpfs { size: 200M }
       /work/.gradle/caches: !CacheDir gradle-cache
 
 containers:
