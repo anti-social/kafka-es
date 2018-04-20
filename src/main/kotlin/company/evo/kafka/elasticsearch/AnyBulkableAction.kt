@@ -8,7 +8,7 @@ import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
 import company.evo.kafka.castOrFail
 
 
-internal class AnyBulkableAction private constructor(builder: RealBuilder) :
+class AnyBulkableAction private constructor(builder: RealBuilder) :
         SingleResultAbstractDocumentTargetedAction(builder),
         BulkableAction<DocumentResult>
 {

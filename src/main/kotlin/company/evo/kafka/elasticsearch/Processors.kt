@@ -8,11 +8,11 @@ import company.evo.kafka.castOrFail
 import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
 
 
-internal interface Processor {
+interface Processor {
     fun process(value: Any, index: String?): AnyBulkableAction
 }
 
-internal class JsonProcessor() : Processor {
+class JsonProcessor : Processor {
     override fun process(value: Any, index: String?): AnyBulkableAction {
         val valueOrPayload = castOrFail<Map<*, *>>(value)
         val payload: Map<*, *> = if (valueOrPayload.containsKey("payload")) {
@@ -42,7 +42,7 @@ internal class JsonProcessor() : Processor {
     }
  }
 
-internal class ProtobufProcessor(
+class ProtobufProcessor(
         includeDefaultValues: Boolean = true
 ) : Processor {
     private val jsonPrinter: JsonFormat.Printer
