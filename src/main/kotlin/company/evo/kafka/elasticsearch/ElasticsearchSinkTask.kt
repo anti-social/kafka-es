@@ -27,6 +27,7 @@ class ElasticsearchSinkTask() : SinkTask() {
     private var testEsClient: JestClient? = null
 
     private var name: String = "unknown"
+    private var index: String? = null
     private var topicToIndexMap = emptyMap<String, String>()
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
     private var requestTimeoutMs = Config.REQUEST_TIMEOUT_DEFAULT
@@ -57,6 +58,7 @@ class ElasticsearchSinkTask() : SinkTask() {
         try {
             val config = Config(props)
             this.name = config.getString(ConnectorConfig.NAME_CONFIG)
+            this.index = config.getString(Config.INDEX)
             this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
             // 90% from the offset commit timeout
             this.flushTimeoutMs = 90 * config.getLong(WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG) / 100
@@ -137,7 +139,7 @@ class ElasticsearchSinkTask() : SinkTask() {
     }
 
     private fun processRecord(sink: Sink, record: SinkRecord) {
-        val index = topicToIndexMap[record.topic()]
+        val index = topicToIndexMap[record.topic()] ?: index
         val value = record.value()
         if (value is List<*>) {
             value.forEach {

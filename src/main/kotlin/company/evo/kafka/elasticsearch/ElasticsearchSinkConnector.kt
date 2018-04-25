@@ -14,7 +14,7 @@ class ElasticsearchSinkConnector : SinkConnector() {
     private lateinit var configProps: Map<String, String>
 
     override fun config(): ConfigDef {
-        return ConfigDef()
+        return Config.CONFIG
     }
 
     override fun taskConfigs(maxTasks: Int): MutableList<MutableMap<String, String>> {
@@ -46,6 +46,7 @@ class ElasticsearchSinkConnector : SinkConnector() {
 class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) {
     companion object {
         val CONNECTION_URL = "connection.url"
+        val INDEX = "index"
         val TOPIC_INDEX_MAP = "topic.index.map"
         val BULK_SIZE = "bulk.size"
         val BULK_SIZE_DEFAULT = 1000
@@ -74,6 +75,13 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                     ConfigDef.Importance.HIGH,
                     "List of Elasticsearch HTTP connection URLs " +
                             "e.g. ``http://es1:9200,http://es2:9200``"
+            )
+            CONFIG.define(
+                    INDEX,
+                    ConfigDef.Type.STRING,
+                    "",
+                    ConfigDef.Importance.HIGH,
+                    "An index into which send actions"
             )
             CONFIG.define(
                     TOPIC_INDEX_MAP,

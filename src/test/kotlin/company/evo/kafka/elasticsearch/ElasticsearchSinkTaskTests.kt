@@ -11,13 +11,21 @@ import io.searchbox.core.Bulk
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkRecord
+import org.apache.kafka.connect.sink.SinkTask
 
 import org.assertj.core.api.Assertions.*
 
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
+private fun SinkTask.startingWith(props: Map<String, String>, block: SinkTask.() -> Unit) {
+    start(props)
+    try {
+        block()
+    } finally {
+        stop()
+    }
+}
 
 class ElasticsearchSinkTaskTests {
     class MockJestClient : JestClient {
@@ -46,48 +54,18 @@ class ElasticsearchSinkTaskTests {
     companion object {
         val gson = Gson()
         val esClient = MockJestClient()
-        val task = ElasticsearchSinkTask(esClient)
         val TOPIC = "test"
-        val TASK_PROPS = mutableMapOf(
+        val TOPIC_INDEX_MAP_TASK_PROPS = mutableMapOf(
                 "name" to "test-connector",
                 "connection.url" to "localhost:9200",
                 "topic.index.map" to "test:test_index"
         )
-    }
-
-    @BeforeEach
-    fun startTask() {
-        task.start(TASK_PROPS)
-    }
-
-    @AfterEach
-    fun stopTask() {
-        task.stop()
-    }
-
-    @AfterEach
-    fun clearEsClient() {
-        esClient.requests.clear()
-    }
-
-    @Test fun testRequiredConfiguration() {
-        val task = ElasticsearchSinkTask()
-        assertThatThrownBy {
-            task.start(mutableMapOf())
-        }
-                .isInstanceOf(ConnectException::class.java)
-                .hasCauseInstanceOf(ConfigException::class.java)
-                .hasStackTraceContaining("\"connection.url\"")
-    }
-
-    @Test fun testPutEmptyList() {
-        task.put(mutableListOf())
-        task.flush(null)
-        assertThat(esClient.requests).isEmpty()
-    }
-
-    @Test fun testPutAndPreCommit() {
-        val value = mapOf(
+        val JUST_INDEX_TASK_PROPS = mutableMapOf(
+                "name" to "test-connector",
+                "connection.url" to "localhost:9200",
+                "index" to "just_index"
+        )
+        val DELETE_VALUE = mapOf(
                 "action" to mapOf(
                         "delete" to mapOf(
                                 "type" to "test_type",
@@ -95,21 +73,72 @@ class ElasticsearchSinkTaskTests {
                         )
                 )
         )
-        task.put(mutableListOf(
-                SinkRecord(TOPIC, 0,
-                        null, Any(),
-                        null, value,
-                        0L)
-        ))
-        task.preCommit(HashMap())
-        assertThat(esClient.requests)
-                .hasSize(1)
-                .first()
-                .isInstanceOf(Bulk::class.java)
-                .returns(
-                        """{"delete":{"_id":"1","_index":"test_index","_type":"test_type"}}
-                            |""".trimMargin(),
-                        { it.getData(gson) }
-                )
+        val DELETE_RECORD = SinkRecord(
+                TOPIC, 0,
+                null, Any(),
+                null, DELETE_VALUE,
+                0L
+        )
+    }
+
+    @AfterEach
+    fun clearEsClient() {
+        esClient.requests.clear()
+    }
+
+    @Test fun `test required configuration`() {
+        val task = ElasticsearchSinkTask()
+        try {
+            assertThatThrownBy {
+                task.start(mutableMapOf())
+            }
+                    .isInstanceOf(ConnectException::class.java)
+                    .hasCauseInstanceOf(ConfigException::class.java)
+                    .hasStackTraceContaining("\"connection.url\"")
+        } finally {
+            task.stop()
+        }
+    }
+
+    @Test fun `test empty sink records`() {
+        ElasticsearchSinkTask(esClient).startingWith(JUST_INDEX_TASK_PROPS) {
+            put(mutableListOf())
+            flush(null)
+            assertThat(esClient.requests).isEmpty()
+        }
+    }
+
+    @Test fun `test topic to index map setting`() {
+        ElasticsearchSinkTask(esClient).startingWith(TOPIC_INDEX_MAP_TASK_PROPS) {
+            put(mutableListOf(DELETE_RECORD))
+            preCommit(HashMap())
+            assertThat(esClient.requests)
+                    .hasSize(1)
+                    .first()
+                    .isInstanceOf(Bulk::class.java)
+                    .returns(
+                            """{"delete":{"_id":"1","_index":"test_index","_type":"test_type"}}
+                                |
+                            """.trimMargin(),
+                            { it.getData(gson) }
+                    )
+        }
+    }
+
+    @Test fun `test index setting`() {
+        ElasticsearchSinkTask(esClient).startingWith(JUST_INDEX_TASK_PROPS) {
+            put(mutableListOf(DELETE_RECORD))
+            preCommit(HashMap())
+            assertThat(esClient.requests)
+                    .hasSize(1)
+                    .first()
+                    .isInstanceOf(Bulk::class.java)
+                    .returns(
+                            """{"delete":{"_id":"1","_index":"just_index","_type":"test_type"}}
+                                |
+                            """.trimMargin(),
+                            { it.getData(gson) }
+                    )
+        }
     }
 }
