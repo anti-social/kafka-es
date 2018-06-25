@@ -49,7 +49,7 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val INDEX = "index"
         val TOPIC_INDEX_MAP = "topic.index.map"
         val BULK_SIZE = "bulk.size"
-        val BULK_SIZE_DEFAULT = 1000
+        val BULK_SIZE_DEFAULT = 100
         val REQUEST_TIMEOUT = "request.timeout.ms"
         val REQUEST_TIMEOUT_DEFAULT = 10_000L
         val MAX_IN_FLIGHT_REQUESTS = "max.in.flight.requests"
