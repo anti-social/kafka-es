@@ -198,7 +198,7 @@ internal class SinkWorker(
             }
         }
         if (successItems > 0) {
-            logger.info("Successfully processed ${successItems} actions")
+            logger.debug("Successfully processed $successItems actions")
         }
         return retriableActions
     }
