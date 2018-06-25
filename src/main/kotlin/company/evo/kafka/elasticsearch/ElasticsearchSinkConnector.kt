@@ -58,8 +58,6 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val DELAY_BEETWEEN_REQUESTS_DEFAULT = 0L
         val QUEUE_SIZE = "queue.size"
         val QUEUE_SIZE_DEFAULT = 5
-        val HEARTBEAT_INTERVAL = "heartbeat.interval"
-        val HEARTBEAT_INTERVAL_DEFAULT = 5000L
         val RETRY_INTERVAL = "retry.interval"
         val RETRY_INTERVAL_DEFAULT = 30_000L
         val MAX_RETRY_INTERVAL = "max.retry.interval"
@@ -125,13 +123,6 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                     QUEUE_SIZE_DEFAULT,
                     ConfigDef.Importance.MEDIUM,
                     "Queue size for bulk requests."
-            )
-            CONFIG.define(
-                    HEARTBEAT_INTERVAL,
-                    ConfigDef.Type.LONG,
-                    HEARTBEAT_INTERVAL_DEFAULT,
-                    ConfigDef.Importance.LOW,
-                    "(Deprecated) Interval between heartbeats when Elasticsearch is unavailable."
             )
             CONFIG.define(
                     RETRY_INTERVAL,
