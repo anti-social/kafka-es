@@ -114,3 +114,8 @@ commands:
     <<: *cmd-opts
     description: Deletes the build directory
     run: [gradle, clean]
+
+  bintray-upload: !Command
+    <<: *cmd-opts
+    description: Upload artifacts on bintray
+    run: [gradle, bintrayUpload, -Duser.home=/work]
