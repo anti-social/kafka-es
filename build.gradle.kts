@@ -89,6 +89,11 @@ val compileTestKotlin by tasks.getting(KotlinCompile::class) {
 
 val jar by tasks.getting(Jar::class)
 
+val sourceJar by tasks.creating(Jar::class) {
+    classifier = "sources"
+    from(java.sourceSets["main"].allSource)
+}
+
 publishing {
     (publications) {
         "jar"(MavenPublication::class) {
@@ -96,6 +101,7 @@ publishing {
             artifactId = project.name
             version = project.version.toString()
             from(components["java"])
+            artifact(sourceJar)
         }
     }
 }
