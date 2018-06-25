@@ -1,0 +1,35 @@
+os: linux
+dist: trusty
+sudo: required
+
+install:
+- sudo apt-get install -y uidmap
+- echo 'deb [arch=amd64 trusted=yes] https://ubuntu.zerogw.com vagga main' | sudo tee /etc/apt/sources.list.d/vagga.list
+- sudo apt-get update
+- sudo apt-get install vagga
+- |
+  echo "cache-dir: ~/.cache/vagga" >> ~/.vagga.yaml
+  echo "ubuntu-mirror: http://mirrors.us.kernel.org/ubuntu/" >> ~/.vagga.yaml
+  echo "alpine-mirror: http://mirrors.gigenet.com/alpinelinux/" >> ~/.vagga.yaml
+
+env:
+  global:
+  - GRADLE_ARGS="--no-daemon --info"
+
+before_script:
+- vagga _build jdk9
+
+script:
+- |
+  vagga assemble $GRADLE_ARGS
+  vagga check $GRADLE_ARGS
+
+after_success:
+- |
+  if [[ $TRAVIS_TAG == v* ]]; then
+    vagga -e BINTRAY_USER -e BINTRAY_API_KEY gradle bintrayUpload $GRADLE_ARGS
+  fi
+
+cache:
+  directories:
+  - $HOME/.cache/vagga/gradle-cache
