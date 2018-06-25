@@ -31,8 +31,6 @@ val protobufVersion = "3.5.1"
 val junitJupiterVersion = "5.2.0"
 
 dependencies {
-    protobuf("com.google.protobuf:protobuf-java:$protobufVersion")
-
     compile(kotlin("stdlib-jdk8"))
     compile("org.apache.kafka:connect-api:$kafkaVersion")
     compile("org.apache.kafka:connect-json:$kafkaVersion")
