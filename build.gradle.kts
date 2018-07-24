@@ -10,7 +10,7 @@ plugins {
     application
     java
     `maven-publish`
-    id("org.jetbrains.kotlin.jvm") version "1.2.50"
+    id("org.jetbrains.kotlin.jvm") version "1.2.51"
     id("com.google.protobuf") version "0.8.5"
     id("com.jfrog.bintray") version "1.8.2"
     id("org.ajoberstar.grgit") version "2.2.1"
