@@ -78,6 +78,18 @@ java.sourceSets {
     )
 }
 
+val javaVersion = JavaVersion.VERSION_1_8.toString()
+
+tasks.withType(JavaCompile::class.java) {
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
+}
+tasks.withType(KotlinCompile::class.java) {
+    kotlinOptions {
+        jvmTarget = javaVersion
+    }
+}
+
 val compileKotlin by tasks.getting(KotlinCompile::class) {
     dependsOn("generateProto")
 }
