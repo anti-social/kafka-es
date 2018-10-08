@@ -53,18 +53,36 @@ val protobufVersion = "3.5.1"
 val junitJupiterVersion = "5.2.0"
 
 dependencies {
+    val kotlintestVersion = "3.1.10"
+
     compile(kotlin("stdlib-jdk8"))
+    compile(kotlin("reflect"))
+    compile("org.jetbrains.kotlinx", "kotlinx-coroutines-core", "0.30.1-eap13")
+    compile("org.jetbrains.kotlinx", "kotlinx-coroutines-jdk8", "0.30.1-eap13")
+
     compile("org.apache.kafka:connect-api:$kafkaVersion")
     compile("org.apache.kafka:connect-json:$kafkaVersion")
     compile("org.apache.kafka:connect-runtime:$kafkaVersion")
+
     compile("io.searchbox:jest:$jestVersion")
     compile("io.searchbox:jest-common:$jestVersion")
+
     compile("com.google.protobuf:protobuf-java:$protobufVersion")
     compile("com.google.protobuf:protobuf-java-util:$protobufVersion")
+
+    compile("com.fasterxml.jackson.module", "jackson-module-kotlin", "2.9.4.1")
 
     testCompile("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
     testRuntime("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
     testCompile("org.assertj:assertj-core:3.8.0")
+
+    testCompile("io.kotlintest", "kotlintest-core", kotlintestVersion)
+    testCompile("io.kotlintest", "kotlintest-assertions", kotlintestVersion)
+    testCompile("io.kotlintest", "kotlintest-runner-junit5", kotlintestVersion)
+
+    testCompile("org.elasticsearch.client", "elasticsearch-rest-high-level-client", "6.4.2")
+
+    testCompile("org.slf4j", "slf4j-simple", "1.8.0-beta2")
 }
 
 application {
@@ -88,6 +106,7 @@ tasks {
     }
     val test by getting(Test::class) {
         useJUnitPlatform()
+        outputs.upToDateWhen { false }
     }
 }
 
