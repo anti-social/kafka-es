@@ -6,14 +6,36 @@ import org.gradle.jvm.tasks.Jar
 import org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapper
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+buildscript {
+    val kotlinVersion = "1.3.0-rc-131"
+
+    repositories {
+        maven(url = "https://dl.bintray.com/kotlin/kotlin-eap")
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+        classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
+    }
+}
+
+repositories {
+    maven(url = "https://dl.bintray.com/kotlin/kotlin-eap")
+    mavenCentral()
+}
+
 plugins {
     application
     java
     `maven-publish`
-    id("org.jetbrains.kotlin.jvm") version "1.2.51"
     id("com.google.protobuf") version "0.8.5"
     id("com.jfrog.bintray") version "1.8.2"
     id("org.ajoberstar.grgit") version "2.2.1"
+}
+
+apply {
+    plugin("kotlin")
 }
 
 repositories {
@@ -88,13 +110,6 @@ tasks.withType(KotlinCompile::class.java) {
     kotlinOptions {
         jvmTarget = javaVersion
     }
-}
-
-val compileKotlin by tasks.getting(KotlinCompile::class) {
-    dependsOn("generateProto")
-}
-val compileTestKotlin by tasks.getting(KotlinCompile::class) {
-    dependsOn("generateTestProto")
 }
 
 val jar by tasks.getting(Jar::class)
