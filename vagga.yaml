@@ -41,7 +41,44 @@ containers:
     - !*Unpack
       - *install-gradle
 
+  elastic-6.x:
+    setup:
+    - !Ubuntu bionic
+    - !UbuntuUniverse
+# pgp.mit.edu returns 502
+#    - !Install [gnupg]
+#    - !AptTrust
+#      server: pgp.mit.edu
+#      keys: [D88E42B4]
+#    - !UbuntuRepo
+#      url: http://packages.elastic.co/elasticsearch/6.x/debian
+#      suite: stable
+#      components: [main]
+    - !Install
+      - ca-certificates
+      - ca-certificates-java
+      - openjdk-11-jre-headless
+#      - elasticsearch=6.4.2
+    - !Download
+      url: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-6.4.2.deb
+      path: /tmp/elasticsearch-6.4.2.deb
+    - !Sh mount
+    - !Sh df -h
+    - !Sh dpkg -i /tmp/elasticsearch-6.4.2.deb
+
 commands:
+  elastic-6x: !Command
+    container: elastic-6.x
+    user-id: 1
+    external-user-id: 0
+    volumes:
+      /var/log/elasticsearch: !Tmpfs
+      /var/lib/elasticsearch: !Tmpfs
+    run:
+    - /usr/share/elasticsearch/bin/elasticsearch
+    - -Ehttp.port=9206
+    - -Etransport.tcp.port=9306
+
   _mk-gradle-user-home: !Command
     container: jdk11
     run: mkdir -p $GRADLE_USER_HOME/caches
