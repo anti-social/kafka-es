@@ -22,8 +22,8 @@ containers:
       - &install-gradle
         - !EnsureDir /opt/gradle
         - !Unzip
-          url: https://services.gradle.org/distributions/gradle-4.8-bin.zip
-          subdir: gradle-4.8
+          url: https://services.gradle.org/distributions/gradle-4.10.2-bin.zip
+          subdir: gradle-4.10.2
           path: /opt/gradle
         - !Sh ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle
 

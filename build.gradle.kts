@@ -91,7 +91,7 @@ tasks {
     }
 }
 
-java.sourceSets {
+sourceSets {
     getByName("main").java.srcDirs(
             Paths.get(protobuf.protobuf.generatedFilesBaseDir, "main", "java")
     )
@@ -116,12 +116,12 @@ val jar by tasks.getting(Jar::class)
 
 val sourceJar by tasks.creating(Jar::class) {
     classifier = "sources"
-    from(java.sourceSets["main"].allSource)
+    from(sourceSets["main"].allSource)
 }
 
 publishing {
-    (publications) {
-        "jar"(MavenPublication::class) {
+    publications {
+        register("jar", MavenPublication::class) {
             groupId = "company.evo"
             artifactId = project.name
             version = project.version.toString()
