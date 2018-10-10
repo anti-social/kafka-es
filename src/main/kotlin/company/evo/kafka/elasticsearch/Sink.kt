@@ -12,7 +12,7 @@ import io.searchbox.client.JestClient
 
 import org.slf4j.LoggerFactory
 
-import company.evo.kafka.Timeout
+import company.evo.Timeout
 
 
 internal class Sink(
@@ -56,7 +56,7 @@ internal class Sink(
                         val task = context.takeTask(MAX_QUEUE_TIMEOUT_MS)
                                 ?: continue
                         if (delayBeetweenRequests > 0) {
-                            val sleepDelay = timeout.drift()
+                            val sleepDelay = timeout.timeLeft()
                             if (sleepDelay > 0) {
                                 logger.trace("Falling asleep for {} ms ...", sleepDelay)
                                 Thread.sleep(sleepDelay)
@@ -99,7 +99,7 @@ internal class Sink(
             // and wait all tasks finished
             val tasksIter = tasks.iterator()
             tasksIter.forEach { task ->
-                task.get(timeout.driftOrFail(), TimeUnit.MILLISECONDS)
+                task.get(timeout.timeLeftOrFail(), TimeUnit.MILLISECONDS)
                 tasksIter.remove()
             }
         } catch (e: TimeoutException) {

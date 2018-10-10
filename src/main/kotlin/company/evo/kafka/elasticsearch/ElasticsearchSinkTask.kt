@@ -19,7 +19,7 @@ import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
 
-import company.evo.kafka.Timeout
+import company.evo.Timeout
 import org.apache.kafka.connect.runtime.ConnectorConfig
 
 

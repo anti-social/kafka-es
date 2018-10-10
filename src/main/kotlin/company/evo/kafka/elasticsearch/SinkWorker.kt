@@ -16,7 +16,7 @@ import io.searchbox.core.BulkResult
 
 import org.slf4j.LoggerFactory
 
-import company.evo.kafka.Timeout
+import company.evo.Timeout
 
 
 internal class SinkWorker(
@@ -89,7 +89,7 @@ internal class SinkWorker(
             val actions = actionChunks.peekFirst()
             return if (!paused && actions.size >= bulkSize) {
                 val task = createTask(actions)
-                if (queue.offer(task, timeout.drift(), TimeUnit.MILLISECONDS)) {
+                if (queue.offer(task, timeout.timeLeft(), TimeUnit.MILLISECONDS)) {
                     logger.debug("Queued ${actions.size} actions")
                     actionChunks.pollFirst()
                     AddActionResult.Task(task)
@@ -106,7 +106,7 @@ internal class SinkWorker(
             val chunksIterator = actionChunks.iterator()
             for (actions in chunksIterator) {
                 val task = createTask(actions)
-                val timeoutMs = timeout.drift()
+                val timeoutMs = timeout.timeLeft()
                 if (timeoutMs <= 0) {
                     return FlushResult(tasks, true)
                 }

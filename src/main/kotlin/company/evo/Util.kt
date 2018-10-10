@@ -1,4 +1,4 @@
-package company.evo.kafka
+package company.evo
 
 import java.util.concurrent.TimeoutException
 
@@ -22,7 +22,7 @@ class Timeout(private val initialTimeoutMs: Long) {
         startedAt = System.nanoTime()
     }
 
-    fun drift(): Long {
+    fun timeLeft(): Long {
         val measuredIntervalMs = Math.max(
                 (System.nanoTime() - startedAt) / 1_000_000,
                 0L
@@ -30,8 +30,8 @@ class Timeout(private val initialTimeoutMs: Long) {
         return initialTimeoutMs - measuredIntervalMs
     }
 
-    fun driftOrFail(): Long {
-        val t = drift()
+    fun timeLeftOrFail(): Long {
+        val t = timeLeft()
         if (t <= 0) {
             throw TimeoutException()
         }

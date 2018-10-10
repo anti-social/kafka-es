@@ -5,7 +5,7 @@ import io.searchbox.core.*
 import io.searchbox.params.Parameters
 
 import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
-import company.evo.kafka.castOrFail
+import company.evo.castOrFail
 
 
 class AnyBulkableAction private constructor(builder: RealBuilder) :
@@ -37,7 +37,7 @@ class AnyBulkableAction private constructor(builder: RealBuilder) :
             }
             val actionEntry = action.iterator().next()
             builder.opType = castOrFail(actionEntry.key)
-            val params = castOrFail<Map<*,*>>(actionEntry.value)
+            val params = castOrFail<Map<*, *>>(actionEntry.value)
             val index = params["_index"] ?: params["index"]
             if (index != null) {
                 builder.index(castOrFail(index))

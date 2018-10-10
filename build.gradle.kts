@@ -28,6 +28,7 @@ repositories {
 plugins {
     application
     java
+    jacoco
     `maven-publish`
     id("com.google.protobuf") version "0.8.5"
     id("com.jfrog.bintray") version "1.8.2"
@@ -97,7 +98,9 @@ protobuf.protobuf.run {
         artifact = "com.google.protobuf:protoc:$protobufVersion"
     })
 }
-
+//jacoco {
+//    exclude
+//}
 tasks {
     val run by getting(JavaExec::class) {
         System.getProperty("exec.args")?.let {
@@ -108,6 +111,9 @@ tasks {
         useJUnitPlatform()
         outputs.upToDateWhen { false }
     }
+//    val jacocoTestReport by getting(JacocoTaskExtension::class) {
+//
+//    }
 }
 
 sourceSets {

@@ -4,7 +4,7 @@ import com.google.protobuf.Message
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 
-import company.evo.kafka.castOrFail
+import company.evo.castOrFail
 import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
 
 
