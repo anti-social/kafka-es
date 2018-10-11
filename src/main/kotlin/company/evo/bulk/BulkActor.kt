@@ -1,7 +1,6 @@
-package company.evo.kafka.elasticsearch
+package company.evo.bulk
 
 import company.evo.Timeout
-import company.evo.bulk.BulkWriter
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -15,24 +14,61 @@ interface Hasher<in T> {
     fun hash(obj: T): Int
 }
 
-interface SinkGroup<in T> : AutoCloseable {
+interface BulkSink<in T> : AutoCloseable {
     suspend fun put(action: T)
     suspend fun flush(): Boolean
 }
 
-interface SinkActor<in T> : AutoCloseable {
+fun <T> BulkSink(
+        hasher: Hasher<T>,
+        concurrency: Int,
+        actorFactory: () -> BulkActor<T>
+) = BulkSinkImpl(hasher, concurrency, actorFactory)
+
+class BulkSinkImpl<in T>(
+        private val hasher: Hasher<T>,
+        private val concurrency: Int,
+        private val actorFactory: () -> BulkActor<T>
+): BulkSink<T> {
+
+    private val actors = (1..concurrency).map { actorFactory() }
+
+    override suspend fun put(action: T) {
+        val hash = hasher.hash(action)
+        actors[hash % concurrency].put(action)
+    }
+
+    override suspend fun flush(): Boolean {
+        return actors.all { it.flush() }
+    }
+
+    override fun close() {
+        actors.forEach { it.close() }
+    }
+}
+
+interface BulkActor<in T> : AutoCloseable {
     suspend fun put(action: T)
     suspend fun flush(): Boolean
 }
 
-class SinkActorImpl<in T>(
-        private val scope: CoroutineScope,
+fun <T> BulkActor(
+        scope: CoroutineScope,
+        bulkWriter: BulkWriter<T>,
+        bulkSize: Int,
+        bulkQueueSize: Int = 0,
+        maxDelayMs: Long = -1,
+        delayBetweenBulksMs: Long = -1
+) = BulkActorImpl(scope, bulkWriter, bulkSize, bulkQueueSize, maxDelayMs, delayBetweenBulksMs)
+
+class BulkActorImpl<in T>(
+        scope: CoroutineScope,
         private val bulkWriter: BulkWriter<T>,
         bulkSize: Int,
         bulkQueueSize: Int = 0,
         maxDelayMs: Long = -1,
         delayBetweenBulksMs: Long = -1
-) : SinkActor<T> {
+) : BulkActor<T> {
 
     private sealed class Msg {
         data class Add<T>(val action: T) : Msg()
@@ -48,14 +84,14 @@ class SinkActorImpl<in T>(
 //        println("${(System.nanoTime() - epoch) / 1_000_000}: [${Thread.currentThread().name}] $msg")
     }
     private fun echo(msg: String) {
-        println("[${(System.nanoTime() - epoch) / 1_000_000}] $msg")
+//        println("[${(System.nanoTime() - epoch) / 1_000_000}] $msg")
     }
 
     private val job = Job(parent = scope.coroutineContext[Job])
     private val timeout = if (maxDelayMs > 0) Timeout(maxDelayMs) else null
     private val sentActionMessages = AtomicInteger()
     private val receivedActionMessages = AtomicInteger()
-    private val actionChannel = scope.actor<Msg>(job, capacity = 1) {
+    private val actionChannel = scope.actor<Msg>(job, capacity = 0) {
         log("Action actor started, job is $job")
         var buffer = ArrayList<T>(bulkSize)
         // TODO Remove try-catch blocks after testing is finished
@@ -69,10 +105,9 @@ class SinkActorImpl<in T>(
                     } else {
                         // Wait next actions no more than maxDelayMs
                         echo("timeout: ${timeout.timeLeft()}")
-                        receive()
-//                        withTimeoutOrNull(timeout.timeLeft()) {
-//                            receive()
-//                        }
+                        withTimeoutOrNull(timeout.timeLeft()) {
+                            receive()
+                        }
                     }
                 } catch (exc: ClosedReceiveChannelException) {
                     break
@@ -116,36 +151,36 @@ class SinkActorImpl<in T>(
         }
         log("Action actor ended")
     }
-//    private val bulkChannel = scope.actor<List<T>>(job, capacity = bulkQueueSize) {
-//        log("Bulk actor started, job is $job")
-//        val bulksDelay = if (delayBetweenBulksMs > 0) Timeout(delayBetweenBulksMs) else null
-//        var isFirstBulk = true
-//        for (bulk in this) {
-//            log("Received bulk")
-//            if (bulksDelay != null && !isFirstBulk) {
-//                delay(bulksDelay.timeLeft())
-//            }
-//            val isWritten = bulkWriter.write(bulk)
-//            bulksDelay?.reset()
-//            log("Bulk was written")
-//            bulkResultChannel.send(isWritten)
-//            isFirstBulk = false
-//        }
-//        log("Bulk actor ended")
-//    }
-//    private val pendingBulks = AtomicInteger()
-//    private val bulkResultChannel = Channel<Boolean>(UNLIMITED)
+    private val bulkChannel = scope.actor<List<T>>(job, capacity = bulkQueueSize) {
+        log("Bulk actor started, job is $job")
+        val bulksDelay = if (delayBetweenBulksMs > 0) Timeout(delayBetweenBulksMs) else null
+        var isFirstBulk = true
+        for (bulk in this) {
+            log("Received bulk")
+            if (bulksDelay != null && !isFirstBulk) {
+                delay(bulksDelay.timeLeft())
+            }
+            val isWritten = bulkWriter.write(bulk)
+            bulksDelay?.reset()
+            log("Bulk was written")
+            bulkResultChannel.send(isWritten)
+            isFirstBulk = false
+        }
+        log("Bulk actor ended")
+    }
+    private val pendingBulks = AtomicInteger()
+    private val bulkResultChannel = Channel<Boolean>(UNLIMITED)
 
     private suspend fun sendBulk(buffer: List<T>, flushMsg: Msg.Flush? = null) {
-//        pendingBulks.incrementAndGet()
+        pendingBulks.incrementAndGet()
         echo("completing $flushMsg, ${flushMsg?.processed}, ${flushMsg === FLUSH_ON_TIMEOUT}")
         if (flushMsg?.processed != null) {
             echo("completed")
             flushMsg.processed.complete(Unit)
         }
-//        println("sending bulk")
-//        bulkChannel.send(buffer)
-//        println("bulk sent")
+        echo("sending bulk")
+        bulkChannel.send(buffer)
+        echo("bulk sent")
     }
 
     override suspend fun put(action: T) {
@@ -164,44 +199,21 @@ class SinkActorImpl<in T>(
         echo("Awaiting message processed: $msg")
         processed.await()
         echo("Message was processed")
-//        val pendingBulkResults = pendingBulks.get()
-//        println("Flushing $pendingBulkResults bulks")
-//        return (1..pendingBulkResults).all {
-//            bulkResultChannel.receive()
-//                    .also { _ -> pendingBulks.decrementAndGet() }
-//                    .also { _ -> println("5.3") }
-//        }
-        return true
+        val pendingBulkResults = pendingBulks.get()
+        echo("Flushing $pendingBulkResults bulks")
+        return (1..pendingBulkResults).all {
+            bulkResultChannel.receive()
+                    .also { _ -> pendingBulks.decrementAndGet() }
+                    .also { _ -> echo("5.3") }
+        }
     }
 
     override fun close() {
         log(">>> close")
         // TODO Should we really close channels?
         actionChannel.close()
-//        bulkChannel.close()
-//        bulkResultChannel.close()
+        bulkChannel.close()
+        bulkResultChannel.close()
         job.cancel()
-    }
-}
-
-class SinkImpl<in T>(
-        private val hasher: Hasher<T>,
-        private val concurrency: Int,
-        private val actorFactory: () -> SinkActor<T>
-) : SinkGroup<T> {
-
-    private val actors = (1..concurrency).map { actorFactory() }
-
-    override suspend fun put(action: T) {
-        val hash = hasher.hash(action)
-        actors[hash % concurrency].put(action)
-    }
-
-    override suspend fun flush(): Boolean {
-        return actors.all { it.flush() }
-    }
-
-    override fun close() {
-        actors.forEach { it.close() }
     }
 }

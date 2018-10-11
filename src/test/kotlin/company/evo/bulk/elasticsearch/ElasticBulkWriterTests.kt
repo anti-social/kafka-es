@@ -42,7 +42,7 @@ class ElasticBulkWriterTests : StringSpec() {
             ))
     )
 
-    override val defaultTestCaseConfig = TestCaseConfig(tags = setOf(company.evo.Integration))
+    override val defaultTestCaseConfig = TestCaseConfig(enabled = false, tags = setOf(company.evo.Integration))
 
     override fun beforeSpec(description: Description, spec: Spec) {
         super.beforeSpec(description, spec)

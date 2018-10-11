@@ -1,32 +1,28 @@
-package company.evo.kafka.elasticsearch
+package company.evo.bulk
 
-import company.evo.bulk.BulkWriter
-import io.kotlintest.Description
-import io.kotlintest.Spec
-import io.kotlintest.TestCaseConfig
+import company.evo.Timing
+
+import io.kotlintest.*
 import io.kotlintest.matchers.beEmpty
 import io.kotlintest.matchers.between
 import io.kotlintest.properties.Gen
-import io.kotlintest.should
-import io.kotlintest.shouldBe
-import io.kotlintest.shouldThrow
 import io.kotlintest.specs.StringSpec
-import kotlinx.coroutines.CancellationException
+
 
 import java.io.IOException
 
 import kotlin.system.measureTimeMillis
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 
 
-class SinkActorTests : StringSpec() {
-//    override val defaultTestCaseConfig = TestCaseConfig(enabled = false)
+class BulkActorTests : StringSpec() {
+    override val defaultTestCaseConfig = TestCaseConfig(tags = setOf(Timing))
 
     private data class Action(val id: Int) {
         companion object {
@@ -81,30 +77,32 @@ class SinkActorTests : StringSpec() {
         // Warm up the code
         runBlocking {
             val bulkWriter = BulkWriterMock()
-            val bulkSize = 1000
-            SinkActorImpl(
-                    this, bulkWriter, bulkSize, 5
-            ).use { sinkActor ->
-                for (i in 1..bulkSize) {
-                    sinkActor.put(Action(i))
+            BulkActor(
+                    this, bulkWriter, 2, maxDelayMs = 5
+            ).use { bulkActor ->
+                repeat(1000) { i ->
+                    bulkActor.put(Action(i))
                 }
+                bulkActor.flush()
             }
         }
     }
 
     companion object {
-        fun echo(msg: String) = println(msg)
+        fun echo(msg: String) {
+//            println(msg)
+        }
     }
 
     init {
         "test bulk size" {
             runBlocking {
                 val bulkWriter = BulkWriterMock()
-                SinkActorImpl(this, bulkWriter, 2).use { sinkActor ->
-                    sinkActor.put(Action(1))
+                BulkActorImpl(this, bulkWriter, 2).use { bulkActor ->
+                    bulkActor.put(Action(1))
                     bulkWriter.fetchAllWrittenBulks().size shouldBe 0
 
-                    sinkActor.put(Action(2))
+                    bulkActor.put(Action(2))
                     delay(4)
                     bulkWriter.fetchAllWrittenBulks() shouldBe listOf(Action.seq(1, 2))
                 }
@@ -114,12 +112,12 @@ class SinkActorTests : StringSpec() {
         "test overflowing bulk size" {
             runBlocking {
                 val bulkWriter = DelayedBulkWriter(20)
-                SinkActorImpl(this, bulkWriter, 2).use { sinkActor ->
-                    (1..4).forEach { sinkActor.put(Action(it)) }
+                BulkActorImpl(this, bulkWriter, 2).use { bulkActor ->
+                    (1..4).forEach { bulkActor.put(Action(it)) }
 
                     // The actor's channel is full thus timeout should happen
                     withTimeoutOrNull(5) {
-                        sinkActor.put(Action(5))
+                        bulkActor.put(Action(5))
                     } shouldBe null
                     bulkWriter.fetchAllWrittenBulks().size shouldBe 0
 
@@ -135,38 +133,42 @@ class SinkActorTests : StringSpec() {
         "f:test blocking when channel is full" {
             runBlocking {
                 val bulkWriter = DelayedBulkWriter(20)
-                (1..100).forEach {
-                    SinkActorImpl(this, bulkWriter, 2, maxDelayMs = 5).use { sinkActor ->
+                // FIXME Hangs when jacoco is enabled
+                repeat(1) { _ ->
+                    BulkActorImpl(this, bulkWriter, 2, maxDelayMs = 5).use { bulkActor ->
                         echo("0")
                         measureTimeMillis {
-                            (1..2).forEach { sinkActor.put(Action(it)) }
-                        }// shouldBe between(0, 18)
+                            (1..2).forEach { bulkActor.put(Action(it)) }
+                        } shouldBe between(0, 2)
                         echo("1")
 
                         measureTimeMillis {
-                            sinkActor.put(Action(3))
-                        }// shouldBe between(0, 18)
+                            bulkActor.put(Action(3))
+                        } shouldBe between(0, 2)
                         echo("2")
 
                         measureTimeMillis {
-                            sinkActor.put(Action(4))
-                        }// shouldBe between(0, 18)
+                            bulkActor.put(Action(4))
+                        } shouldBe between(0, 2)
                         echo("3")
 
                         measureTimeMillis {
-                            sinkActor.put(Action(5))
-                        }// shouldBe between(16, 24)
+                            bulkActor.put(Action(5))
+                        } shouldBe between(18, 22)
                         echo("4")
 
-//                        bulkWriter.fetchAllWrittenBulks().size shouldBe 1
+                        bulkWriter.fetchAllWrittenBulks().size shouldBe 1
                         echo("5")
 
                         measureTimeMillis {
-                            sinkActor.flush() shouldBe true
-                        }// shouldBe between(36L, 44L)
+                            bulkActor.flush() shouldBe true
+                        } shouldBe between(38L, 42L)
                         echo("6")
                     }
-                    println("=".repeat(80))
+//                    if (it % 1000 == 0) {
+//                        println(it)
+//                    }
+//                    println("=".repeat(80))
                 }
             }
         }
@@ -174,8 +176,8 @@ class SinkActorTests : StringSpec() {
         "test max delay" {
             runBlocking {
                 val bulkWriter = BulkWriterMock()
-                SinkActorImpl(this, bulkWriter, 100, maxDelayMs = 5).use { sinkActor ->
-                    sinkActor.put(Action(1))
+                BulkActorImpl(this, bulkWriter, 100, maxDelayMs = 5).use { bulkActor ->
+                    bulkActor.put(Action(1))
                     delay(3)
                     bulkWriter.fetchAllWrittenBulks().size shouldBe 0
 
@@ -188,15 +190,15 @@ class SinkActorTests : StringSpec() {
         "delay between bulks" {
             runBlocking {
                 val bulkWriter = BulkWriterMock()
-                SinkActorImpl(this, bulkWriter, 2, delayBetweenBulksMs = 20).use { sinkActor ->
+                BulkActorImpl(this, bulkWriter, 2, delayBetweenBulksMs = 20).use { bulkActor ->
                     measureTimeMillis {
-                        sinkActor.put(Action(1))
-                        sinkActor.flush()
+                        bulkActor.put(Action(1))
+                        bulkActor.flush()
                     } shouldBe between(0, 5)
 
                     measureTimeMillis {
-                        sinkActor.put(Action(2))
-                        sinkActor.flush()
+                        bulkActor.put(Action(2))
+                        bulkActor.flush()
                     } shouldBe between(18, 22)
                 }
             }
@@ -205,12 +207,12 @@ class SinkActorTests : StringSpec() {
         "test flush" {
             runBlocking {
                 val bulkWriter = BulkWriterMock()
-                SinkActorImpl(this, bulkWriter, 10, maxDelayMs = 5).use { sinkActor ->
-                    sinkActor.put(Action(1))
+                BulkActorImpl(this, bulkWriter, 10, maxDelayMs = 5).use { bulkActor ->
+                    bulkActor.put(Action(1))
                     delay(2)
                     bulkWriter.fetchAllWrittenBulks() should beEmpty()
 
-                    sinkActor.flush() shouldBe true
+                    bulkActor.flush() shouldBe true
                     bulkWriter.fetchAllWrittenBulks() shouldBe listOf(Action.seq(1, 1))
                 }
             }
@@ -219,9 +221,9 @@ class SinkActorTests : StringSpec() {
         "test flush timeout" {
             runBlocking {
                 val bulkWriter = DelayedBulkWriter(10)
-                SinkActorImpl(this, bulkWriter, 10, maxDelayMs = 5).use { sinkActor ->
-                    sinkActor.put(Action(1))
-                    sinkActor.flush() shouldBe true
+                BulkActorImpl(this, bulkWriter, 10, maxDelayMs = 5).use { bulkActor ->
+                    bulkActor.put(Action(1))
+                    bulkActor.flush() shouldBe true
                 }
             }
         }
@@ -229,8 +231,8 @@ class SinkActorTests : StringSpec() {
         "test empty flush" {
             runBlocking {
                 val bulkWriter = BulkWriterMock()
-                SinkActorImpl(this, bulkWriter, 2).use { sinkActor ->
-                    sinkActor.flush() shouldBe true
+                BulkActorImpl(this, bulkWriter, 2).use { bulkActor ->
+                    bulkActor.flush() shouldBe true
                     bulkWriter.fetchAllWrittenBulks() shouldBe emptyList<List<Action>>()
                 }
             }
@@ -239,13 +241,13 @@ class SinkActorTests : StringSpec() {
         "test flush by flush" {
             runBlocking {
                 val bulkWriter = BulkWriterMock()
-                SinkActorImpl(this, bulkWriter, 3).use { sinkActor ->
-                    sinkActor.put(Action(1))
-                    sinkActor.flush() shouldBe true
+                BulkActorImpl(this, bulkWriter, 3).use { bulkActor ->
+                    bulkActor.put(Action(1))
+                    bulkActor.flush() shouldBe true
                     bulkWriter.fetchAllWrittenBulks() shouldBe listOf(Action.seq(1, 1))
 
-                    (2..3).forEach { sinkActor.put(Action(it)) }
-                    sinkActor.flush() shouldBe true
+                    (2..3).forEach { bulkActor.put(Action(it)) }
+                    bulkActor.flush() shouldBe true
                     bulkWriter.fetchAllWrittenBulks() shouldBe listOf(Action.seq(2, 2))
                 }
             }
@@ -254,16 +256,16 @@ class SinkActorTests : StringSpec() {
         "test put after closing" {
             runBlocking {
                 val bulkWriter = BulkWriterMock()
-                val sinkActor = SinkActorImpl(this, bulkWriter, 3)
+                val bulkActor = BulkActorImpl(this, bulkWriter, 3)
 
-                sinkActor.put(Action(0))
-                sinkActor.close()
+                bulkActor.put(Action(0))
+                bulkActor.close()
 
                 shouldThrow<CancellationException> {
-                    sinkActor.put(Action(1))
+                    bulkActor.put(Action(1))
                 }
                 shouldThrow<CancellationException> {
-                    sinkActor.flush()
+                    bulkActor.flush()
                 }
 
                 bulkWriter.fetchAllWrittenBulks().size shouldBe 0
@@ -275,11 +277,11 @@ class SinkActorTests : StringSpec() {
                 val bulkWriter = BulkWriterMock()
                 val sizes = Gen.choose(0, 10).random().asIterable().iterator()
                 withContext(Dispatchers.Default) {
-                    SinkActorImpl(this, bulkWriter, 2).use { sinkActor ->
-                        for (i in (1..1000)) {
+                    BulkActorImpl(this, bulkWriter, 2).use { bulkActor ->
+                        repeat(1000) { i ->
                             val size = sizes.next()
-                            (0 until size).forEach { sinkActor.put(Action(i + it)) }
-                            sinkActor.flush() shouldBe true
+                            (0 until size).forEach { bulkActor.put(Action(i + it)) }
+                            bulkActor.flush() shouldBe true
                             bulkWriter.fetchAllWrittenBulks() shouldBe Action.seq(i, size).chunked(2)
                         }
                     }
@@ -290,17 +292,17 @@ class SinkActorTests : StringSpec() {
         "use after flush was timed out" {
             runBlocking {
                 val bulkWriter = DelayedBulkWriter(20)
-                SinkActorImpl(this, bulkWriter, 2).use { sinkActor ->
-                    (1..4).forEach { sinkActor.put(Action(it)) }
+                BulkActorImpl(this, bulkWriter, 2).use { bulkActor ->
+                    (1..4).forEach { bulkActor.put(Action(it)) }
 
                     withTimeoutOrNull(30) {
-                        sinkActor.flush()
+                        bulkActor.flush()
                     } shouldBe null
                     bulkWriter.fetchAllWrittenBulks() shouldBe listOf(Action.seq(1, 2))
 
-                    sinkActor.put(Action(5))
+                    bulkActor.put(Action(5))
                     measureTimeMillis {
-                        sinkActor.flush()
+                        bulkActor.flush()
                     } shouldBe between(28, 32)
                     bulkWriter.fetchAllWrittenBulks() shouldBe Action.seq(3, 3).chunked(2)
                 }
@@ -310,8 +312,8 @@ class SinkActorTests : StringSpec() {
         "sink with 2 actors" {
             runBlocking {
                 val bulkWriter = BulkWriterMock()
-                SinkImpl(ActionHasher(), 2) {
-                    SinkActorImpl(this, bulkWriter, 2)
+                BulkSink(ActionHasher(), 2) {
+                    BulkActor(this, bulkWriter, 2)
                 }.use { sink ->
                     sink.put(Action(1))
                     sink.put(Action(2))
@@ -324,8 +326,8 @@ class SinkActorTests : StringSpec() {
         "sink with 2 actors and delayed writer" {
             runBlocking {
                 val bulkWriter = DelayedBulkWriter(20)
-                SinkImpl(ActionHasher(), 2) {
-                    SinkActorImpl(this, bulkWriter, 2, maxDelayMs = 5)
+                BulkSink(ActionHasher(), 2) {
+                    BulkActor(this, bulkWriter, 2, maxDelayMs = 5)
                 }.use { sink ->
                     measureTimeMillis {
                         (1..4).forEach { sink.put(Action(it)) }
