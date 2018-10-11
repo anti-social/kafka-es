@@ -201,11 +201,13 @@ class BulkActorImpl<in T>(
         echo("Message was processed")
         val pendingBulkResults = pendingBulks.get()
         echo("Flushing $pendingBulkResults bulks")
-        return (1..pendingBulkResults).all {
+        val isFlushed = (1..pendingBulkResults).all {
             bulkResultChannel.receive()
                     .also { _ -> pendingBulks.decrementAndGet() }
                     .also { _ -> echo("5.3") }
         }
+        echo("Flush result: $isFlushed")
+        return isFlushed
     }
 
     override fun close() {

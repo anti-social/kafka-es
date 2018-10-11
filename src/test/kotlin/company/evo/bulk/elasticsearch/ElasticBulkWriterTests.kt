@@ -1,12 +1,9 @@
 package company.evo.bulk.elasticsearch
 
-import io.kotlintest.Description
-import io.kotlintest.Spec
-import io.kotlintest.TestCaseConfig
-import io.kotlintest.TestResult
+import io.kotlintest.*
+import io.kotlintest.extensions.TestCaseExtension
+import io.kotlintest.extensions.TestCaseInterceptContext
 import io.kotlintest.matchers.containExactly
-import io.kotlintest.should
-import io.kotlintest.shouldBe
 import io.kotlintest.specs.StringSpec
 
 import kotlinx.coroutines.runBlocking
@@ -42,22 +39,35 @@ class ElasticBulkWriterTests : StringSpec() {
             ))
     )
 
-    override val defaultTestCaseConfig = TestCaseConfig(enabled = false, tags = setOf(company.evo.Integration))
+    inner class IndexCleanupExtension : TestCaseExtension {
+        override fun intercept(
+                context: TestCaseInterceptContext,
+                test: (TestCaseConfig, (TestResult) -> Unit) -> Unit,
+                complete: (TestResult) -> Unit
+        ) {
+
+            if (context.enabled) {
+                deleteIndexIfExists()
+                createIndex()
+            }
+            try {
+                test(context.config, complete)
+            } finally {
+                if (context.enabled) {
+                    deleteIndexIfExists()
+                }
+            }
+        }
+    }
+
+    override val defaultTestCaseConfig = TestCaseConfig(
+            extensions = listOf(IndexCleanupExtension())
+    )
+    override fun tags(): Set<Tag> = setOf(company.evo.Integration)
 
     override fun beforeSpec(description: Description, spec: Spec) {
         super.beforeSpec(description, spec)
         httpClient.start()
-    }
-
-    override fun beforeTest(description: Description) {
-        super.beforeTest(description)
-        deleteIndexIfExists()
-        createIndex()
-    }
-
-    override fun afterTest(description: Description, result: TestResult) {
-        super.afterTest(description, result)
-        deleteIndexIfExists()
     }
 
     private fun deleteIndexIfExists() {

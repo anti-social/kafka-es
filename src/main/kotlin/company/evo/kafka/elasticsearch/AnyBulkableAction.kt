@@ -28,6 +28,8 @@ class AnyBulkableAction private constructor(builder: RealBuilder) :
         }
     }
 
+    fun getSource() = payload
+
     class Builder {
         private val builder = RealBuilder()
 

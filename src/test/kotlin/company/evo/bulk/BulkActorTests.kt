@@ -130,7 +130,7 @@ class BulkActorTests : StringSpec() {
             }
         }
 
-        "f:test blocking when channel is full" {
+        "test blocking when channel is full" {
             runBlocking {
                 val bulkWriter = DelayedBulkWriter(20)
                 // FIXME Hangs when jacoco is enabled

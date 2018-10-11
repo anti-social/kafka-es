@@ -16,7 +16,6 @@ buildscript {
 
     dependencies {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
-        classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
     }
 }
 
@@ -54,6 +53,7 @@ val junitJupiterVersion = "5.2.0"
 
 dependencies {
     val kotlintestVersion = "3.1.10"
+    val mockkVersion = "1.8.9.kotlin13"
 
     compile(kotlin("stdlib-jdk8"))
     compile(kotlin("reflect"))
@@ -72,13 +72,11 @@ dependencies {
 
     compile("com.fasterxml.jackson.module", "jackson-module-kotlin", "2.9.4.1")
 
-    testCompile("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
-    testRuntime("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
-    testCompile("org.assertj:assertj-core:3.8.0")
-
     testCompile("io.kotlintest", "kotlintest-core", kotlintestVersion)
     testCompile("io.kotlintest", "kotlintest-assertions", kotlintestVersion)
     testCompile("io.kotlintest", "kotlintest-runner-junit5", kotlintestVersion)
+
+    testCompile("io.mockk", "mockk", mockkVersion)
 
     testCompile("org.elasticsearch.client", "elasticsearch-rest-high-level-client", "6.4.2")
 
@@ -104,6 +102,14 @@ tasks {
         }
     }
     val test by getting(Test::class) {
+        val includeTags = project.properties["include"]?.also {
+            systemProperty("kotlintest.tags.include", it)
+        }
+        val defaultExcludeTags = if (includeTags == null ) "Integration" else null
+        (project.properties["exclude"] ?: defaultExcludeTags)?.let {
+            systemProperty("kotlintest.tags.exclude", it)
+        }
+
         useJUnitPlatform()
         outputs.upToDateWhen { false }
     }
