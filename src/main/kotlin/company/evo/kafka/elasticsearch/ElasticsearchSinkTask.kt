@@ -1,13 +1,6 @@
 package company.evo.kafka.elasticsearch
 
-import java.util.Objects
-
 import com.google.protobuf.Message
-
-import io.searchbox.client.JestClient
-import io.searchbox.client.JestClientFactory
-import io.searchbox.client.config.HttpClientConfig
-import io.searchbox.params.Parameters
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.TopicPartition
@@ -32,8 +25,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient
 
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder
+import org.apache.http.impl.nio.reactor.IOReactorConfig
 import org.apache.http.nio.client.HttpAsyncClient
 import org.apache.kafka.connect.runtime.ConnectorConfig
 
@@ -43,6 +38,18 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
 
         private val EMPTY_OFFSETS: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap()
+
+        private val HTTP_CLIENT: CloseableHttpAsyncClient = HttpAsyncClientBuilder.create()
+                .setDefaultIOReactorConfig(
+                        IOReactorConfig.custom()
+                                .setIoThreadCount(2)
+                                .build()
+                )
+                .build()
+
+        init {
+            HTTP_CLIENT.start()
+        }
     }
 
     private lateinit var job: Job
@@ -50,6 +57,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         get() = Dispatchers.Default + job
 
     private var testHttpClient: HttpAsyncClient? = null
+    private val httpClient = testHttpClient ?: HTTP_CLIENT
 
     private var name: String = "unknown"
     private var index: String? = null
@@ -57,7 +65,6 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
     private var requestTimeoutMs = Config.REQUEST_TIMEOUT_DEFAULT
 
-    private var esClient: JestClient? = null
     private lateinit var sink: BulkSink<BulkAction>
     private var isPaused = false
     private var processedRecords: Int = 0
@@ -87,28 +94,10 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                     )
             )
             val esUrls = config.getList(Config.CONNECTION_URL)
-//            val testEsClient = this.testEsClient
             requestTimeoutMs = config.getLong(Config.REQUEST_TIMEOUT)
-//            val esClient = if (testEsClient != null) {
-//                testEsClient
-//            } else {
-//                logger.info("[$name] Initializing Elasticsearch client for cluster: $esUrls")
-//                JestClientFactory().apply {
-//                    setHttpClientConfig(
-//                            HttpClientConfig.Builder(esUrls)
-//                                    .multiThreaded(true)
-//                                    .connTimeout(requestTimeoutMs.toInt())
-//                                    .readTimeout(requestTimeoutMs.toInt())
-//                                    .build()
-//                    )
-//                }
-//                        .`object`
-//            }
-//            this.esClient = esClient
+
             this.job = Job()
             val hasher = ElasticBulkHasher()
-            val httpClient = testHttpClient ?: HttpAsyncClientBuilder.create()
-                    .build()
             this.sink = BulkSink(
                     hasher,
                     concurrency = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS)
@@ -140,7 +129,6 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     override fun stop() {
         logger.info("[$name] Stopping ElasticsearchSinkTask")
         sink.close()
-//        httpClient.close()
         isPaused = false
         processedRecords = 0
     }
@@ -184,7 +172,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     private fun processValue(value: Any?, index: String?, record: SinkRecord) {
-        val anyBulkAction = when (value) {
+        val bulkAction = when (value) {
             is Map<*,*> -> {
                 jsonProcessor.process(value, index)
             }
@@ -198,11 +186,11 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 )
             }
         }
-        val bulkAction = BulkAction(
-                BulkAction.Operation.DELETE, anyBulkAction.index, anyBulkAction.type, anyBulkAction.id,
-                routing = anyBulkAction.getParameter("routing").firstOrNull()?.toString(),
-                source = anyBulkAction.getSource()
-        )
+//        val bulkAction = BulkAction(
+//                BulkAction.Operation.DELETE, anyBulkAction.index, anyBulkAction.type, anyBulkAction.id,
+//                routing = anyBulkAction.getParameter("routing").firstOrNull()?.toString(),
+//                source = anyBulkAction.getSource()
+//        )
 //        val routing = bulkAction.getParameter(Parameters.ROUTING).toList()
 //        // TODO(Possibly we always should hash only topic, partition and key)
 //        val hash = when {

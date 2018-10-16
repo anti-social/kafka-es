@@ -1,8 +1,7 @@
 package company.evo.bulk.elasticsearch
 
 import io.kotlintest.*
-import io.kotlintest.extensions.TestCaseExtension
-import io.kotlintest.extensions.TestCaseInterceptContext
+import io.kotlintest.extensions.TestListener
 import io.kotlintest.matchers.containExactly
 import io.kotlintest.specs.StringSpec
 
@@ -39,30 +38,23 @@ class ElasticBulkWriterTests : StringSpec() {
             ))
     )
 
-    inner class IndexCleanupExtension : TestCaseExtension {
-        override fun intercept(
-                context: TestCaseInterceptContext,
-                test: (TestCaseConfig, (TestResult) -> Unit) -> Unit,
-                complete: (TestResult) -> Unit
-        ) {
+    inner class IndexCleanupListener : TestListener {
+        override fun beforeTest(description: Description) {
+            super.beforeTest(description)
+            deleteIndexIfExists()
+            createIndex()
+        }
 
-            if (context.enabled) {
-                deleteIndexIfExists()
-                createIndex()
-            }
-            try {
-                test(context.config, complete)
-            } finally {
-                if (context.enabled) {
-                    deleteIndexIfExists()
-                }
-            }
+        override fun afterTest(description: Description, result: TestResult) {
+            super.afterTest(description, result)
+            deleteIndexIfExists()
         }
     }
+    val indexCleanupListener = IndexCleanupListener()
 
-    override val defaultTestCaseConfig = TestCaseConfig(
-            extensions = listOf(IndexCleanupExtension())
-    )
+    override fun listeners(): List<TestListener> {
+        return listOf(indexCleanupListener)
+    }
     override fun tags(): Set<Tag> = setOf(company.evo.Integration)
 
     override fun beforeSpec(description: Description, spec: Spec) {
