@@ -162,7 +162,7 @@ class BulkActorImpl<in T>(
             }
             val isWritten = bulkWriter.write(bulk)
             bulksDelay?.reset()
-            log("Bulk was written")
+            echo("Bulk was written: $isWritten")
             bulkResultChannel.send(isWritten)
             isFirstBulk = false
         }
@@ -204,7 +204,6 @@ class BulkActorImpl<in T>(
         val isFlushed = (1..pendingBulkResults).all {
             bulkResultChannel.receive()
                     .also { _ -> pendingBulks.decrementAndGet() }
-                    .also { _ -> echo("5.3") }
         }
         echo("Flush result: $isFlushed")
         return isFlushed

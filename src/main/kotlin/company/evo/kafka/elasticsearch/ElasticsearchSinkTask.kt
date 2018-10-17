@@ -75,8 +75,8 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private val requestTimeout = Timeout(requestTimeoutMs)
     private val flushTimeout = Timeout(flushTimeoutMs)
 
-    internal constructor(httpClient: HttpAsyncClient) : this() {
-        this.testHttpClient = httpClient
+    internal constructor(testHttpClient: HttpAsyncClient) : this() {
+        this.testHttpClient = testHttpClient
     }
 
     override fun start(props: MutableMap<String, String>) {
@@ -96,6 +96,8 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             val esUrls = config.getList(Config.CONNECTION_URL)
             requestTimeoutMs = config.getLong(Config.REQUEST_TIMEOUT)
 
+            val httpClient = this.testHttpClient ?: this.httpClient
+
             this.job = Job()
             val hasher = ElasticBulkHasher()
             this.sink = BulkSink(
@@ -105,7 +107,8 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 BulkActor(
                         this, ElasticBulkWriter(httpClient, esUrls),
                         bulkSize = config.getInt(Config.BULK_SIZE),
-                        bulkQueueSize = config.getInt(Config.QUEUE_SIZE)
+                        bulkQueueSize = config.getInt(Config.QUEUE_SIZE),
+                        delayBetweenBulksMs = config.getLong(Config.DELAY_BEETWEEN_REQUESTS)
                 )
             }
 //            this.sink = Sink(
@@ -230,26 +233,24 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         if (isPaused) {
             return EMPTY_OFFSETS
         }
-        runBlocking {
+        val commitOffsets = runBlocking {
             flushTimeout.reset()
-            withTimeout(flushTimeout.timeLeft()) {
+            println("Flush timout: ${flushTimeout.timeLeft()}")
+            val isFlushed = withTimeout(flushTimeout.timeLeft()) {
                 sink.flush()
-            }.let { isFlushed ->
-                if (!isFlushed) {
-                    pause()
-                    return@runBlocking EMPTY_OFFSETS
-                }
             }
-//        if (!sink.flush(flushTimeout)) {
-//            pause()
-//            return EMPTY_OFFSETS
-//        }
+            if (isFlushed) {
+                currentOffsets
+            } else {
+                pause()
+                EMPTY_OFFSETS
+            }
         }
         if (processedRecords > 0) {
             logger.info("[$name] Committing $processedRecords processed records")
         }
         processedRecords = 0
-        return super.preCommit(currentOffsets)
+        return super.preCommit(commitOffsets)
     }
 
     override fun flush(currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?) {

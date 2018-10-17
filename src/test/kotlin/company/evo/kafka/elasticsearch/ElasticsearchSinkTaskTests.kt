@@ -1,14 +1,15 @@
 package company.evo.kafka.elasticsearch
 
-import com.google.gson.Gson
 import io.kotlintest.*
-
 import io.kotlintest.matchers.instanceOf
 import io.kotlintest.matchers.string.contain
 import io.kotlintest.specs.StringSpec
-import io.mockk.*
-import org.apache.http.HttpEntity
 
+import io.mockk.*
+
+import java.net.URI
+
+import org.apache.http.HttpEntity
 import org.apache.http.HttpResponse
 import org.apache.http.ProtocolVersion
 import org.apache.http.client.methods.HttpPost
@@ -16,15 +17,12 @@ import org.apache.http.client.methods.HttpUriRequest
 import org.apache.http.concurrent.FutureCallback
 import org.apache.http.entity.StringEntity
 import org.apache.http.message.BasicStatusLine
-
 import org.apache.http.nio.client.HttpAsyncClient
 
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
-import java.lang.AssertionError
-import java.net.URI
 
 private fun SinkTask.startingWith(props: Map<String, String>, block: SinkTask.() -> Unit) {
     start(props)
@@ -35,38 +33,9 @@ private fun SinkTask.startingWith(props: Map<String, String>, block: SinkTask.()
     }
 }
 
-interface Car {
-    fun setSpeed(speed: Int): Boolean
-}
-
-
 class ElasticsearchSinkTaskTests : StringSpec() {
-//    class MockJestClient : JestClient {
-//        var requests = ArrayList<Action<out JestResult>>()
-//        val gson = Gson()
-//
-//        override fun setServers(servers: MutableSet<String>?) {}
-//
-//        override fun <T : JestResult> execute(clientRequest: Action<T>): T? {
-//            requests.add(clientRequest)
-//            return clientRequest.createNewElasticSearchResult(
-//                    "",
-//                    200,
-//                    "200 OK",
-//                    gson
-//            )
-//        }
-//
-//        override fun <T : JestResult> executeAsync(clientRequest: Action<T>, jestResultHandler: JestResultHandler<in T>) {}
-//
-//        override fun close() {}
-//
-//        override fun shutdownClient() = close()
-//    }
 
     companion object {
-        val gson = Gson()
-//        val esClient = MockJestClient()
         val TOPIC = "test"
         val TOPIC_INDEX_MAP_TASK_PROPS = mutableMapOf(
                 "name" to "test-connector",

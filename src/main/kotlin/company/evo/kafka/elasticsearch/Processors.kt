@@ -22,13 +22,14 @@ class JsonProcessor : Processor {
             valueOrPayload
         }
         val actionData: Map<*, *> = castOrFail(payload["action"], "action")
+        println(actionData)
         val actionEntry = actionData.iterator().next()
         val opType = castOrFail<String>(actionEntry.key)
         val actionMeta = castOrFail<Map<*, *>>(actionEntry.value)
         val indexName = if (index?.isNotEmpty() == true) {
             index
         } else {
-            castOrFail(actionMeta["_index"])
+            (actionMeta["_index"] ?: actionMeta["index"]).toString()
         }
         val source = when (opType) {
             "index", "create", "update" -> {
@@ -45,10 +46,14 @@ class JsonProcessor : Processor {
             }
         }
         return BulkAction(
-                BulkAction.Operation.valueOf(opType),
+                BulkAction.Operation.fromValue(opType),
                 index = indexName,
-                type = castOrFail(actionMeta["_type"]),
-                id = castOrFail(actionMeta["_id"]),
+                type = (actionMeta["_type"] ?: actionMeta["type"]).toString(),
+                id = (actionMeta["_id"] ?: actionMeta["id"]).toString(),
+                routing = actionMeta["routing"]?.toString(),
+                parent = actionMeta["parent"]?.toString(),
+                version = actionMeta["version"]?.toString(),
+                versionType = actionMeta["version_type"]?.toString(),
                 source = source
         )
     }
@@ -105,6 +110,10 @@ class ProtobufProcessor(
                 index = indexName,
                 type = action.type,
                 id = action.id,
+                routing = if (action.routing.isNotEmpty()) action.routing else null,
+                parent = if (action.parent.isNotEmpty()) action.parent else null,
+                version = if (action.version.isNotEmpty()) action.version else null,
+                versionType = if (action.versionType.isNotEmpty()) action.versionType else null,
                 source = source
         )
     }

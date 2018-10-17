@@ -36,7 +36,14 @@ data class BulkAction(
     }
 
     enum class Operation(val value: String) {
-        INDEX("index"), CREATE("create"), UPDATE("update"), DELETE("delete")
+        INDEX("index"), CREATE("create"), UPDATE("update"), DELETE("delete");
+
+        companion object {
+            private val VALUES = Operation.values().associateBy { it.value }
+
+            fun fromValue(value: String) = VALUES[value]
+                    ?: throw IllegalArgumentException("Unknown operation value: $value")
+        }
     }
 
     init {

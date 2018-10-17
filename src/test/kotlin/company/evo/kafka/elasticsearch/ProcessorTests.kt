@@ -1,13 +1,11 @@
 package company.evo.kafka.elasticsearch
 
-import com.google.gson.Gson
 import com.google.protobuf.Int32Value
 import com.google.protobuf.Struct
 import com.google.protobuf.Timestamp
 import com.google.protobuf.Value
 
 import company.evo.kafka.TestProto
-import company.evo.kafka.elasticsearch.BulkActionProto
 import company.evo.bulk.elasticsearch.BulkAction
 
 import io.kotlintest.matchers.string.contain
@@ -15,7 +13,6 @@ import io.kotlintest.should
 import io.kotlintest.shouldBe
 import io.kotlintest.shouldThrow
 import io.kotlintest.specs.StringSpec
-
 
 class JsonProcessorTests : StringSpec() {
     private val processor = JsonProcessor()
@@ -83,15 +80,19 @@ class JsonProcessorTests : StringSpec() {
                             ),
                             "source" to mapOf(
                                     "name" to "Teo"
-                            )),
+                            )
+                    ),
                     "test_index"
             )
+            action.operation shouldBe BulkAction.Operation.INDEX
             action.index shouldBe "test_index"
             action.type shouldBe "test"
             action.id shouldBe "123"
-            action.operation shouldBe BulkAction.Operation.INDEX
-//            action.getData(Gson()) shouldBe """{"name":"Teo"}"""
-//            action.getParameter("routing").toList() shouldBe emptyList()
+            action.routing shouldBe null
+            action.parent shouldBe null
+            action.version shouldBe null
+            action.versionType shouldBe null
+            action.source shouldBe mapOf("name" to "Teo")
         }
 
         "process delete action" {
@@ -106,11 +107,11 @@ class JsonProcessorTests : StringSpec() {
                     ),
                     "test_index"
             )
+            action.operation shouldBe BulkAction.Operation.DELETE
             action.index shouldBe "test_index"
             action.type shouldBe "test"
             action.id shouldBe "123"
-            action.operation shouldBe BulkAction.Operation.DELETE
-//            action.getData(Gson()) shouldBe null
+            action.source shouldBe null
         }
 
         "process update action" {
@@ -128,11 +129,11 @@ class JsonProcessorTests : StringSpec() {
                     ),
                     "test_index"
             )
+            action.operation shouldBe BulkAction.Operation.UPDATE
             action.index shouldBe "test_index"
             action.type shouldBe "test"
             action.id shouldBe "123"
-            action.operation shouldBe BulkAction.Operation.UPDATE
-//            action.getData(Gson()) shouldBe """{"doc":{"name":"Updated name"}}"""
+            action.source shouldBe mapOf("doc" to mapOf("name" to "Updated name"))
         }
 
         "process create action" {
@@ -148,11 +149,11 @@ class JsonProcessorTests : StringSpec() {
                             )),
                     "test_index"
             )
+            action.operation shouldBe BulkAction.Operation.CREATE
             action.index shouldBe "test_index"
             action.type shouldBe "test"
             action.id shouldBe "123"
-            action.operation shouldBe BulkAction.Operation.CREATE
-//            action.getData(Gson()) shouldBe """{"name":"Teo"}"""
+            action.source shouldBe mapOf("name" to "Teo")
         }
     }
 }
@@ -160,7 +161,6 @@ class JsonProcessorTests : StringSpec() {
 class ProtobufProcessorTests : StringSpec() {
     private val processor = ProtobufProcessor(includeDefaultValues = true)
     private val processorNoDefaults = ProtobufProcessor(includeDefaultValues = false)
-    private val gson = Gson()
     private val testMsg = TestProto.TestMessage.newBuilder()
             .setAction(BulkActionProto.BulkAction.newBuilder()
                     .setOpType(BulkActionProto.BulkAction.OpType.INDEX)
@@ -222,49 +222,52 @@ class ProtobufProcessorTests : StringSpec() {
         }
 
         "process index action" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     testMsg, "test_index"
-            )
-            action.index shouldBe "test_index"
-            action.type shouldBe "test"
-            action.id shouldBe "123"
-//            action.getParameter("routing") shouldBe setOf("4")
-//            action.getParameter("parent") shouldBe emptySet()
-//            action.bulkMethodName shouldBe "index"
-//            action.getData(gson) shouldBe """{"name":"Teo"}"""
+            ).run {
+                operation shouldBe BulkAction.Operation.INDEX
+                index shouldBe "test_index"
+                type shouldBe "test"
+                id shouldBe "123"
+                routing shouldBe "4"
+                parent shouldBe null
+                source shouldBe """{"name":"Teo"}"""
+            }
         }
 
         "process index action including default values" {
-            val action = processor.process(testMsg, "test_index")
-            action.index shouldBe "test_index"
-            action.type shouldBe "test"
-            action.id shouldBe "123"
-//            action.getParameter("routing") shouldBe setOf("4")
-//            action.getParameter("parent") shouldBe emptySet()
-//            action.bulkMethodName shouldBe "index"
-//            action.getData(gson) shouldBe """{"id":0,"name":"Teo","counter":"0"}"""
+            processor.process(testMsg, "test_index").run {
+                operation shouldBe BulkAction.Operation.INDEX
+                index shouldBe "test_index"
+                type shouldBe "test"
+                id shouldBe "123"
+                routing shouldBe "4"
+                parent shouldBe null
+                source shouldBe """{"id":0,"name":"Teo","counter":"0"}"""
+            }
         }
 
         "process delete action" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     BulkActionProto.DeleteMessage.newBuilder()
                             .setAction(BulkActionProto.BulkAction.newBuilder()
                                     .setOpType(BulkActionProto.BulkAction.OpType.DELETE)
                                     .setType("test").setId("123").setRouting("4")
                             ),
                     "test_index"
-            )
-            action.index shouldBe "test_index"
-            action.type shouldBe "test"
-            action.id shouldBe "123"
-//            action.getParameter("routing") shouldBe setOf("4")
-//            action.getParameter("parent") shouldBe emptySet()
-//            action.bulkMethodName shouldBe "delete"
-//            action.getData(gson) shouldBe null
+            ).run {
+                operation shouldBe  BulkAction.Operation.DELETE
+                index shouldBe "test_index"
+                type shouldBe "test"
+                id shouldBe "123"
+                routing shouldBe "4"
+                parent shouldBe null
+                source shouldBe null
+            }
         }
 
         "process update action with document" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.UpdateMessage.newBuilder()
                             .setAction(BulkActionProto.BulkAction.newBuilder()
                                     .setOpType(BulkActionProto.BulkAction.OpType.UPDATE)
@@ -275,18 +278,19 @@ class ProtobufProcessorTests : StringSpec() {
                                             .setName("Leo"))
                                     .setDocAsUpsert(true)),
                     "test_index"
-            )
-            action.index shouldBe "test_index"
-            action.type shouldBe "test"
-            action.id shouldBe "123"
-//            action.getParameter("routing") shouldBe setOf("4")
-//            action.getParameter("parent") shouldBe emptySet()
-//            action.bulkMethodName shouldBe "update"
-//            action.getData(gson) shouldBe """{"doc":{"name":"Leo"},"doc_as_upsert":true}"""
+            ).run {
+                operation shouldBe BulkAction.Operation.UPDATE
+                index shouldBe "test_index"
+                type shouldBe "test"
+                id shouldBe "123"
+                routing shouldBe "4"
+                parent shouldBe null
+                source shouldBe """{"doc":{"name":"Leo"},"doc_as_upsert":true}"""
+            }
         }
 
         "process update action with script" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.UpdateMessage.newBuilder()
                             .setAction(BulkActionProto.BulkAction.newBuilder()
                                     .setOpType(BulkActionProto.BulkAction.OpType.UPDATE)
@@ -305,22 +309,23 @@ class ProtobufProcessorTests : StringSpec() {
                                             .setCounter(1))
                             ),
                     "test_index"
-            )
-            action.index shouldBe "test_index"
-            action.type shouldBe "test"
-            action.id shouldBe "123"
-//            action.getParameter("routing") shouldBe setOf("4")
-//            action.getParameter("parent") shouldBe emptySet()
-//            action.bulkMethodName shouldBe "update"
-//            action.getData(gson) shouldBe """{"script":{""" +
-//                    """"lang":"painless",""" +
-//                    """"source":"ctx._source.counter += params.count",""" +
-//                    """"params":{"count":4.0}},""" +
-//                    """"upsert":{"name":"Teo","counter":"1"}}"""
+            ).run {
+                operation shouldBe BulkAction.Operation.UPDATE
+                index shouldBe "test_index"
+                type shouldBe "test"
+                id shouldBe "123"
+                routing shouldBe "4"
+                parent shouldBe null
+                source shouldBe """{"script":{""" +
+                        """"lang":"painless",""" +
+                        """"source":"ctx._source.counter += params.count",""" +
+                        """"params":{"count":4.0}},""" +
+                        """"upsert":{"name":"Teo","counter":"1"}}"""
+            }
         }
 
         "process create action" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.TestMessage.newBuilder()
                             .setAction(BulkActionProto.BulkAction.newBuilder()
                                     .setOpType(BulkActionProto.BulkAction.OpType.CREATE)
@@ -329,116 +334,128 @@ class ProtobufProcessorTests : StringSpec() {
                             .setSource(TestProto.TestDocument.newBuilder()
                                     .setName("Leo")),
                     "test_index"
-            )
-            action.index shouldBe "test_index"
-            action.type shouldBe "test"
-            action.id shouldBe "123"
-//            action.getParameter("routing") shouldBe setOf("4")
-//            action.getParameter("parent") shouldBe emptySet()
-//            action.bulkMethodName shouldBe "create"
-//            action.getData(gson) shouldBe """{"name":"Leo"}"""
+            ).run {
+                operation shouldBe BulkAction.Operation.CREATE
+                index shouldBe "test_index"
+                type shouldBe "test"
+                id shouldBe "123"
+                routing shouldBe "4"
+                parent shouldBe null
+                source shouldBe """{"name":"Leo"}"""
+            }
         }
 
         "process source with enum" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.EnumMessage.newBuilder()
                             .setSource(TestProto.EnumMessage.Source.newBuilder()
                                     .setStatus(TestProto.EnumMessage.Status.DELETED)),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe """{"status":"DELETED"}"""
+            ).run {
+                source shouldBe """{"status":"DELETED"}"""
+            }
         }
 
         "source without default enum value" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.EnumMessage.newBuilder()
                             .setSource(TestProto.EnumMessage.Source.getDefaultInstance()),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe "{}"
+            ).run {
+                source shouldBe "{}"
+            }
         }
 
         "source including default enum value" {
-            val action = processor.process(
+            processor.process(
                     TestProto.EnumMessage.newBuilder()
                             .setSource(TestProto.EnumMessage.Source.getDefaultInstance()),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe """{"status":"ACTIVE"}"""
+            ).run {
+                source shouldBe """{"status":"ACTIVE"}"""
+            }
         }
 
         "repeated field" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.RepeatedMessage.newBuilder()
                             .setSource(TestProto.RepeatedMessage.Source.newBuilder()
                                     .addAllDeliveryRegions(listOf(1, 5))),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe """{"delivery_regions":[1,5]}"""
+            ).run {
+                source shouldBe """{"delivery_regions":[1,5]}"""
+            }
         }
 
         "empty repeated field" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.RepeatedMessage.newBuilder()
                             .setSource(TestProto.RepeatedMessage.Source.getDefaultInstance()),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe "{}"
+            ).run {
+                source shouldBe "{}"
+            }
         }
 
         "source with a map" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.MapMessage.newBuilder()
                             .setSource(TestProto.MapMessage.Source.newBuilder()
                                     .putMyMap("test", "test value")),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe """{"my_map":{"test":"test value"}}"""
+            ).run {
+                source shouldBe """{"my_map":{"test":"test value"}}"""
+            }
         }
 
         "source with an empty map" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.MapMessage.newBuilder()
                             .setSource(TestProto.MapMessage.Source.getDefaultInstance()),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe "{}"
+            ).run {
+                source shouldBe "{}"
+            }
         }
 
         "source with an empty map including default value" {
-            val action = processor.process(
+            processor.process(
                     TestProto.MapMessage.newBuilder()
                             .setSource(TestProto.MapMessage.Source.getDefaultInstance()),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe """{"my_map":{}}"""
+            ).run {
+                source shouldBe """{"my_map":{}}"""
+            }
         }
 
         "source with timestamp" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.DatetimeMessage.newBuilder()
                             .setSource(TestProto.DatetimeMessage.Source.newBuilder()
                                     .setDatetime(Timestamp.newBuilder().setSeconds(1))),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe """{"datetime":"1970-01-01T00:00:01Z"}"""
+            ).run {
+                source shouldBe """{"datetime":"1970-01-01T00:00:01Z"}"""
+            }
         }
 
         "source with default int32 value" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.Int32ValueMessage.newBuilder()
                             .setSource(TestProto.Int32ValueMessage.Source.newBuilder()
                                     .setNullableInt(Int32Value.newBuilder().setValue(0))),
                     "test_index"
-            )
-//            action.getData(gson) shouldBe """{"nullable_int":0}"""
+            ).run {
+                source shouldBe """{"nullable_int":0}"""
+            }
         }
 
         "missing int32 value" {
-            val action = processorNoDefaults.process(
+            processorNoDefaults.process(
                     TestProto.Int32ValueMessage.getDefaultInstance(), "test_index"
-            )
-//            action.getData(gson) shouldBe "{}"
+            ).run {
+                source shouldBe "{}"
+            }
         }
     }
 }
