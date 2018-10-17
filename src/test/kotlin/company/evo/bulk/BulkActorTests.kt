@@ -88,12 +88,6 @@ class BulkActorTests : StringSpec() {
         }
     }
 
-    companion object {
-        fun echo(msg: String) {
-//            println(msg)
-        }
-    }
-
     init {
         "test bulk size" {
             runBlocking {
@@ -136,39 +130,28 @@ class BulkActorTests : StringSpec() {
                 // FIXME Hangs when jacoco is enabled
                 repeat(1) { _ ->
                     BulkActorImpl(this, bulkWriter, 2, maxDelayMs = 5).use { bulkActor ->
-                        echo("0")
                         measureTimeMillis {
                             (1..2).forEach { bulkActor.put(Action(it)) }
                         } shouldBe between(0, 2)
-                        echo("1")
 
                         measureTimeMillis {
                             bulkActor.put(Action(3))
                         } shouldBe between(0, 2)
-                        echo("2")
 
                         measureTimeMillis {
                             bulkActor.put(Action(4))
                         } shouldBe between(0, 2)
-                        echo("3")
 
                         measureTimeMillis {
                             bulkActor.put(Action(5))
                         } shouldBe between(18, 22)
-                        echo("4")
 
                         bulkWriter.fetchAllWrittenBulks().size shouldBe 1
-                        echo("5")
 
                         measureTimeMillis {
                             bulkActor.flush() shouldBe true
                         } shouldBe between(38L, 42L)
-                        echo("6")
                     }
-//                    if (it % 1000 == 0) {
-//                        println(it)
-//                    }
-//                    println("=".repeat(80))
                 }
             }
         }

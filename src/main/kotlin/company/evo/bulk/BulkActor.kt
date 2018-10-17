@@ -80,11 +80,8 @@ class BulkActorImpl<in T>(
     }
 
     private var epoch = System.nanoTime()
-    private fun log(msg: String) {
-//        println("${(System.nanoTime() - epoch) / 1_000_000}: [${Thread.currentThread().name}] $msg")
-    }
     private fun echo(msg: String) {
-//        println("[${(System.nanoTime() - epoch) / 1_000_000}] $msg")
+//        println("[${(System.nanoTime() - epoch) / 1_000_000}] [${Thread.currentThread().name}] $msg")
     }
 
     private val job = Job(parent = scope.coroutineContext[Job])
@@ -92,31 +89,22 @@ class BulkActorImpl<in T>(
     private val sentActionMessages = AtomicInteger()
     private val receivedActionMessages = AtomicInteger()
     private val actionChannel = scope.actor<Msg>(job, capacity = 0) {
-        log("Action actor started, job is $job")
         var buffer = ArrayList<T>(bulkSize)
         // TODO Remove try-catch blocks after testing is finished
         try {
             while (true) {
-                echo("Waiting action message")
                 val msgOrNull = try {
                     if (buffer.isEmpty() || timeout == null) {
                         // Wait first action infinitely
                         receive()
                     } else {
                         // Wait next actions no more than maxDelayMs
-                        echo("timeout: ${timeout.timeLeft()}")
                         withTimeoutOrNull(timeout.timeLeft()) {
                             receive()
                         }
                     }
                 } catch (exc: ClosedReceiveChannelException) {
                     break
-                }
-                if (msgOrNull != null) {
-                    val n = receivedActionMessages.incrementAndGet()
-                    echo("#$n msg received: $msgOrNull")
-                } else {
-                    echo("Flush on timeout")
                 }
                 val msg = msgOrNull ?: FLUSH_ON_TIMEOUT
 
@@ -129,7 +117,6 @@ class BulkActorImpl<in T>(
                         @Suppress("UNCHECKED_CAST")
                         buffer.add(msg.action as T)
                         if (buffer.size >= bulkSize) {
-                            echo("Flushing by size")
                             sendBulk(buffer)
                             buffer = ArrayList()
                         }
@@ -138,7 +125,6 @@ class BulkActorImpl<in T>(
                         if (buffer.isEmpty()) {
                             msg.processed?.complete(Unit)
                         } else {
-                            log("Flusing by timeout or flush message")
                             sendBulk(buffer, msg)
                             buffer = ArrayList()
                         }
@@ -146,71 +132,52 @@ class BulkActorImpl<in T>(
                 }
             }
         } catch (exc: CancellationException) {
-            log("Action actor cancelled")
             throw exc
         }
-        log("Action actor ended")
     }
     private val bulkChannel = scope.actor<List<T>>(job, capacity = bulkQueueSize) {
-        log("Bulk actor started, job is $job")
         val bulksDelay = if (delayBetweenBulksMs > 0) Timeout(delayBetweenBulksMs) else null
         var isFirstBulk = true
         for (bulk in this) {
-            log("Received bulk")
             if (bulksDelay != null && !isFirstBulk) {
                 delay(bulksDelay.timeLeft())
             }
             val isWritten = bulkWriter.write(bulk)
             bulksDelay?.reset()
-            echo("Bulk was written: $isWritten")
             bulkResultChannel.send(isWritten)
             isFirstBulk = false
         }
-        log("Bulk actor ended")
     }
     private val pendingBulks = AtomicInteger()
     private val bulkResultChannel = Channel<Boolean>(UNLIMITED)
 
     private suspend fun sendBulk(buffer: List<T>, flushMsg: Msg.Flush? = null) {
         pendingBulks.incrementAndGet()
-        echo("completing $flushMsg, ${flushMsg?.processed}, ${flushMsg === FLUSH_ON_TIMEOUT}")
         if (flushMsg?.processed != null) {
-            echo("completed")
             flushMsg.processed.complete(Unit)
         }
-        echo("sending bulk")
         bulkChannel.send(buffer)
-        echo("bulk sent")
     }
 
     override suspend fun put(action: T) {
-        log(">>> put: $action")
         val msg = Msg.Add(action)
         actionChannel.send(msg)
-        echo("#${sentActionMessages.incrementAndGet()} msg sent: $msg")
     }
 
     override suspend fun flush(): Boolean {
-        log(">>> flush")
+        // TODO Catch CancelledException and do cleanup
         val processed = CompletableDeferred<Unit>()
         val msg = Msg.Flush(processed)
         actionChannel.send(msg)
-        echo("#${sentActionMessages.incrementAndGet()} msg sent: $msg")
-        echo("Awaiting message processed: $msg")
         processed.await()
-        echo("Message was processed")
         val pendingBulkResults = pendingBulks.get()
-        echo("Flushing $pendingBulkResults bulks")
-        val isFlushed = (1..pendingBulkResults).all {
+        return (1..pendingBulkResults).all {
             bulkResultChannel.receive()
-                    .also { _ -> pendingBulks.decrementAndGet() }
+                    .also { pendingBulks.decrementAndGet() }
         }
-        echo("Flush result: $isFlushed")
-        return isFlushed
     }
 
     override fun close() {
-        log(">>> close")
         // TODO Should we really close channels?
         actionChannel.close()
         bulkChannel.close()
