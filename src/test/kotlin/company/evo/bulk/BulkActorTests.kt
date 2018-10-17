@@ -7,18 +7,13 @@ import io.kotlintest.matchers.beEmpty
 import io.kotlintest.matchers.between
 import io.kotlintest.properties.Gen
 import io.kotlintest.specs.StringSpec
+import kotlinx.coroutines.*
 
 
 import java.io.IOException
 
 import kotlin.system.measureTimeMillis
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 
 
 class BulkActorTests : StringSpec() {
@@ -286,10 +281,12 @@ class BulkActorTests : StringSpec() {
                     bulkActor.put(Action(5))
                     measureTimeMillis {
                         bulkActor.flush()
-                    } shouldBe between(28, 32)
-                    bulkWriter.fetchAllWrittenBulks() shouldBe Action.seq(3, 3).chunked(2)
+                    } shouldBe between(18, 22)
+                    bulkWriter.fetchAllWrittenBulks() shouldBe Action.seq(5, 1).chunked(2)
                 }
+                println("Bulk actor was closed")
             }
+            println("Test finished")
         }
 
         "sink with 2 actors" {
