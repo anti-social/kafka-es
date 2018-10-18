@@ -50,16 +50,20 @@ class BulkSinkImpl<in T>(
 interface BulkActor<in T> : AutoCloseable {
     suspend fun put(action: T)
     suspend fun flush(): Boolean
-}
 
-fun <T> BulkActor(
-        scope: CoroutineScope,
-        bulkWriter: BulkWriter<T>,
-        bulkSize: Int,
-        bulkQueueSize: Int = 0,
-        maxDelayMs: Long = -1,
-        delayBetweenBulksMs: Long = -1
-) = BulkActorImpl(scope, bulkWriter, bulkSize, bulkQueueSize, maxDelayMs, delayBetweenBulksMs)
+    companion object {
+        operator fun <T> invoke(
+                scope: CoroutineScope,
+                bulkWriter: BulkWriter<T>,
+                bulkSize: Int,
+                bulkQueueSize: Int = 0,
+                maxDelayMs: Long = -1,
+                delayBetweenBulksMs: Long = -1
+        ): BulkActor<T> {
+            return BulkActorImpl(scope, bulkWriter, bulkSize, bulkQueueSize, maxDelayMs, delayBetweenBulksMs)
+        }
+    }
+}
 
 class BulkActorImpl<in T>(
         private val scope: CoroutineScope,
@@ -77,6 +81,7 @@ class BulkActorImpl<in T>(
 
     companion object {
         private val FLUSH_ON_TIMEOUT = Msg.Flush()
+        private val CLOSED_MESSAGE = "Is closed"
     }
 
     private var epoch = System.nanoTime()
@@ -105,16 +110,12 @@ class BulkActorImpl<in T>(
     }
 
     override suspend fun put(action: T) {
-        if (isClosed) {
-            throw CancellationException()
-        }
+        checkClosed()
         actionChannel.send(Msg.Add(action))
     }
 
     override suspend fun flush(): Boolean {
-        if (isClosed) {
-            throw CancellationException()
-        }
+        checkClosed()
         return try {
             val processed = CompletableDeferred<Unit>()
             val msg = Msg.Flush(processed)
@@ -126,17 +127,25 @@ class BulkActorImpl<in T>(
                         .also { pendingBulks.decrementAndGet() }
             }
         } catch (exc: CancellationException) {
+            // If flush was cancelled the data is in inconsistent state
+            // so we must cancel all the coroutines and clear all the data
             restart()
             throw exc
+        }
+    }
+
+    private fun checkClosed() {
+        if (isClosed) {
+            throw CancellationException(CLOSED_MESSAGE)
         }
     }
 
     private fun restart() {
         close()
         job = Job(parent = scope.coroutineContext[Job])
+        pendingBulks.set(0)
         actionChannel = startActionActor()
         bulkChannel = startBulkActor()
-        pendingBulks.set(0)
         isClosed = false
     }
 
@@ -202,7 +211,6 @@ class BulkActorImpl<in T>(
         actionChannel.close()
         bulkChannel.close()
         bulkResultChannel.close()
-//        job.cancelChildren()
         job.cancel()
         isClosed = true
     }
