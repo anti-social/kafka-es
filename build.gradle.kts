@@ -28,7 +28,7 @@ plugins {
     application
     java
     `maven-publish`
-    id("com.google.protobuf") version "0.8.5"
+    id("com.google.protobuf") version "0.8.6"
     id("com.jfrog.bintray") version "1.8.2"
     id("org.ajoberstar.grgit") version "2.2.1"
 }
@@ -48,7 +48,7 @@ version = gitDescribe.trimStart('v')
 
 val kafkaVersion = "1.0.2"
 val jestVersion = "5.3.3"
-val protobufVersion = "3.5.1"
+val protobufVersion = "3.6.1"
 val junitJupiterVersion = "5.2.0"
 
 dependencies {
@@ -153,6 +153,11 @@ publishing {
             artifact(sourceJar)
         }
     }
+//    repositories {
+//        maven {
+//            url = uri("~/.m2")
+//        }
+//    }
 }
 
 bintray {

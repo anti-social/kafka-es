@@ -23,6 +23,7 @@ import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
+import org.apache.kafka.connect.sink.SinkTaskContext
 
 private fun SinkTask.startingWith(props: Map<String, String>, block: SinkTask.() -> Unit) {
     start(props)
@@ -141,9 +142,23 @@ class ElasticsearchSinkTaskTests : StringSpec() {
 
         "index setting" {
             withHttpClient(DUMMY_BULK_RESULT) {
-                ElasticsearchSinkTask(httpClient).startingWith(JUST_INDEX_TASK_PROPS) {
-                    put(mutableListOf(DELETE_RECORD))
-                    preCommit(HashMap())
+                val taskContext = mockk<SinkTaskContext>()
+                every {
+                    taskContext.assignment()
+                } returns emptySet()
+                every {
+                    taskContext.pause()
+                } just Runs
+
+                ElasticsearchSinkTask(httpClient)
+                        .apply { initialize(taskContext) }
+                        .startingWith(JUST_INDEX_TASK_PROPS) {
+                            put(mutableListOf(DELETE_RECORD))
+                            preCommit(HashMap())
+                        }
+
+                verify(exactly = 0) {
+                    taskContext.pause()
                 }
 
                 httpRequest.captured shouldBe instanceOf(HttpPost::class)

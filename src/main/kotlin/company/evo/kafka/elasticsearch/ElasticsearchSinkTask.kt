@@ -18,19 +18,16 @@ import company.evo.bulk.BulkSink
 import company.evo.bulk.elasticsearch.BulkAction
 import company.evo.bulk.elasticsearch.ElasticBulkHasher
 import company.evo.bulk.elasticsearch.ElasticBulkWriter
+import kotlinx.coroutines.*
 
 import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient
 
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder
 import org.apache.http.impl.nio.reactor.IOReactorConfig
 import org.apache.http.nio.client.HttpAsyncClient
 import org.apache.kafka.connect.runtime.ConnectorConfig
+import java.util.*
 
 
 class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
@@ -68,6 +65,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private lateinit var sink: BulkSink<BulkAction>
     private var isPaused = false
     private var processedRecords: Int = 0
+    private val overflowBuffer = ArrayDeque<SinkRecord>()
 
     private var protobufProcessor = ProtobufProcessor()
     private val jsonProcessor = JsonProcessor()
@@ -134,6 +132,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         sink.close()
         isPaused = false
         processedRecords = 0
+        overflowBuffer.clear()
     }
 
     override fun version(): String {
@@ -153,8 +152,23 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
 //            }
 //        }
 
-        records.forEach {
-            processRecord(it)
+        val isProcessFailed = runBlocking {
+            var isProcessFailed = processOverflowed()
+
+            for (rec in records) {
+                if (isProcessFailed) {
+                    overflowBuffer.addLast(rec)
+                } else if (!processRecord(rec)) {
+                    isProcessFailed = true
+                    overflowBuffer.addLast(rec)
+                }
+            }
+
+            isProcessFailed
+        }
+
+        if (isPaused && !isProcessFailed) {
+            resume()
         }
     }
 
@@ -162,19 +176,25 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
 //        return sink ?: throw ConnectException("Sink is not initialized")
 //    }
 
-    private fun processRecord(record: SinkRecord) {
-        val index = topicToIndexMap[record.topic()] ?: index
-        val value = record.value()
-        if (value is List<*>) {
-            value.forEach {
-                processValue(it, index, record)
+    private suspend fun processOverflowed(): Boolean {
+        while(true) {
+            val rec = overflowBuffer.peekFirst() ?: break
+            if (!processRecord(rec)) {
+                return false
             }
-        } else {
-            processValue(value, index, record)
+            overflowBuffer.removeFirst()
         }
+        return true
     }
 
-    private fun processValue(value: Any?, index: String?, record: SinkRecord) {
+
+    private suspend fun processRecord(record: SinkRecord): Boolean {
+        val index = topicToIndexMap[record.topic()] ?: index
+        val value = record.value()
+        return processValue(value, index)
+    }
+
+    private suspend fun processValue(value: Any?, index: String?): Boolean {
         val bulkAction = when (value) {
             is Map<*,*> -> {
                 jsonProcessor.process(value, index)
@@ -189,40 +209,17 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 )
             }
         }
-//        val bulkAction = BulkAction(
-//                BulkAction.Operation.DELETE, anyBulkAction.index, anyBulkAction.type, anyBulkAction.id,
-//                routing = anyBulkAction.getParameter("routing").firstOrNull()?.toString(),
-//                source = anyBulkAction.getSource()
-//        )
-//        val routing = bulkAction.getParameter(Parameters.ROUTING).toList()
-//        // TODO(Possibly we always should hash only topic, partition and key)
-//        val hash = when {
-//            routing.isNotEmpty() -> {
-//                Objects.hash(*routing.toTypedArray())
-//            }
-//            bulkAction.id != null -> {
-//                bulkAction.id.hashCode()
-//            }
-//            record.key() != null -> {
-//                record.key().hashCode()
-//            }
-//            else -> {
-//                Objects.hash(record.topic(), record.kafkaPartition())
-//            }
-//        }
-        try {
-            requestTimeout.reset()
-            runBlocking {
-                withTimeout(requestTimeout.timeLeft()) {
-                    sink.put(bulkAction)
-                }
+        requestTimeout.reset()
+        withTimeoutOrNull(requestTimeout.timeLeft()) {
+                sink.put(bulkAction)
+        }.let { putRes ->
+            return if (putRes == null) {
+                pause()
+                false
+            } else {
+                processedRecords += 1
+                true
             }
-//            if (!sink.put(bulkAction)) {
-//                pause()
-//            }
-            processedRecords += 1
-        } catch (e: IllegalArgumentException) {
-            logger.error("[$name] Malformed message", e)
         }
     }
 
@@ -235,10 +232,9 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         }
         val commitOffsets = runBlocking {
             flushTimeout.reset()
-            println("Flush timout: ${flushTimeout.timeLeft()}")
-            val isFlushed = withTimeout(flushTimeout.timeLeft()) {
-                sink.flush()
-            }
+            val isFlushed = withTimeoutOrNull(flushTimeout.timeLeft()) {
+                processOverflowed() && sink.flush()
+            } != null
             if (isFlushed) {
                 currentOffsets
             } else {
