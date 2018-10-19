@@ -94,6 +94,7 @@ class ElasticBulkWriter(
                 it.writeTo(objectMapper, outStream)
             }
             val body = outStream.toByteArray()
+            logger.info("Sending action:\n${body.toString(Charsets.UTF_8)}")
             entity = ByteArrayEntity(
                     body, ContentType.create("application/x-ndjson")
             )
@@ -124,6 +125,7 @@ class ElasticBulkWriter(
         val retriableItems = mutableListOf<BulkResult.Item>()
         val retriableActions = mutableListOf<BulkAction>()
         val content = httpResponse.entity.content.readAllBytes()
+        logger.info("Got response:\n${content.toString(Charsets.UTF_8)}")
         val bulkResult = objectMapper.readValue<BulkResult>(content)
         bulkResult.items.zip(actions).forEach { (item, action) ->
             val error = item.value.error
