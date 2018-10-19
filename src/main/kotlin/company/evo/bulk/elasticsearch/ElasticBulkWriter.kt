@@ -45,7 +45,7 @@ class ElasticBulkWriter(
 //                "version_conflict_engine_exception",
                 "elasticsearch_parse_exception",
                 "parsing_exception",
-//                "mapper_parsing_exception",
+                "mapper_parsing_exception",
                 "routing_missing_exception"
         )
 
@@ -95,7 +95,6 @@ class ElasticBulkWriter(
                 it.writeTo(objectMapper, outStream)
             }
             val body = outStream.toByteArray()
-            logger.info("Sending action:\n${body.toString(Charsets.UTF_8)}")
             entity = ByteArrayEntity(
                     body, ContentType.create("application/x-ndjson")
             )
@@ -126,7 +125,6 @@ class ElasticBulkWriter(
         val retriableItems = mutableListOf<BulkResult.Item>()
         val retriableActions = mutableListOf<BulkAction>()
         val content = httpResponse.entity.content.readAllBytes()
-        logger.info("Got response:\n${content.toString(Charsets.UTF_8)}")
         val bulkResult = objectMapper.readValue<BulkResult>(content)
         bulkResult.items.zip(actions).forEach { (item, action) ->
             val error = item.value.error
@@ -142,8 +140,8 @@ class ElasticBulkWriter(
             }
         }
         if (failedItems.isNotEmpty()) {
-            logger.error(formatFailedItems(
-                    "Some documents weren't indexed, skipping", failedItems
+            throw BulkWriteException(formatFailedItems(
+                    "Some documents weren't indexed", failedItems
             ))
         }
         if (retriableItems.isNotEmpty()) {
