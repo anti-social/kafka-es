@@ -70,17 +70,17 @@ class BulkActorTests : StringSpec() {
     override fun beforeSpec(description: Description, spec: Spec) {
         super.beforeSpec(description, spec)
         // Warm up the code
-        runBlocking {
-            val bulkWriter = BulkWriterMock()
-            BulkActor(
-                    this, bulkWriter, 2, maxDelayMs = 5
-            ).use { bulkActor ->
-                repeat(1000) { i ->
-                    bulkActor.put(Action(i))
-                }
-                bulkActor.flush()
-            }
-        }
+//        runBlocking {
+//            val bulkWriter = BulkWriterMock()
+//            BulkActor(
+//                    this, bulkWriter, 2, maxDelayMs = 5
+//            ).use { bulkActor ->
+//                repeat(1000) { i ->
+//                    bulkActor.put(Action(i))
+//                }
+//                bulkActor.flush()
+//            }
+//        }
     }
 
     init {

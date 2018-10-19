@@ -4,3 +4,4 @@ import io.kotlintest.Tag
 
 internal object Integration : Tag()
 internal object Timing : Tag()
+internal object Task : Tag()

@@ -98,8 +98,9 @@ class ElasticBulkWriter(
             entity = ByteArrayEntity(
                     body, ContentType.create("application/x-ndjson")
             )
-        })
-                .also { checkStatus(it) }
+        }).also {
+            checkStatus(it)
+        }
     }
 
     private fun nextBulkUrl() {

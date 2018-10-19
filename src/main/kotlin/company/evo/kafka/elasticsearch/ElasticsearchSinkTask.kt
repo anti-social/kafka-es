@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory
 import company.evo.Timeout
 import company.evo.bulk.BulkActor
 import company.evo.bulk.BulkSink
+import company.evo.bulk.BulkWriteException
 import company.evo.bulk.elasticsearch.BulkAction
 import company.evo.bulk.elasticsearch.ElasticBulkHasher
 import company.evo.bulk.elasticsearch.ElasticBulkWriter
@@ -98,10 +99,9 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
 
             this.job = Job()
             val hasher = ElasticBulkHasher()
-            this.sink = BulkSink(
-                    hasher,
-                    concurrency = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS)
-            ) {
+            val concurrency = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS)
+            logger.info("Starting $concurrency bulk sinks")
+            this.sink = BulkSink(hasher, concurrency = concurrency) {
                 BulkActor(
                         this, ElasticBulkWriter(httpClient, esUrls),
                         bulkSize = config.getInt(Config.BULK_SIZE),
@@ -152,22 +152,22 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
 //            }
 //        }
 
-        val isProcessFailed = runBlocking {
-            var isProcessFailed = processOverflowed()
+        val isProcessed = runBlocking {
+            var isProcessed = processOverflowed()
 
             for (rec in records) {
-                if (isProcessFailed) {
+                if (!isProcessed) {
                     overflowBuffer.addLast(rec)
                 } else if (!processRecord(rec)) {
-                    isProcessFailed = true
+                    isProcessed = false
                     overflowBuffer.addLast(rec)
                 }
             }
 
-            isProcessFailed
+            isProcessed
         }
 
-        if (isPaused && !isProcessFailed) {
+        if (isPaused && isProcessed) {
             resume()
         }
     }
@@ -233,13 +233,24 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         val commitOffsets = runBlocking {
             flushTimeout.reset()
             val isFlushed = withTimeoutOrNull(flushTimeout.timeLeft()) {
-                processOverflowed() && sink.flush()
-            } != null
-            if (isFlushed) {
-                currentOffsets
-            } else {
-                pause()
-                EMPTY_OFFSETS
+                processOverflowed() &&
+                        try {
+                            sink.flush()
+                        } catch (exc: BulkWriteException) {
+                            throw ConnectException("Unrecoverable error when flushing", exc)
+                        }
+            }
+            when (isFlushed) {
+                true -> currentOffsets
+                false -> {
+                    pause()
+                    // TODO Fetch failed actions and calculate corresponding commit offsets
+                    EMPTY_OFFSETS
+                }
+                null -> {
+                    pause()
+                    EMPTY_OFFSETS
+                }
             }
         }
         if (processedRecords > 0) {
@@ -263,4 +274,6 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         isPaused = false
         logger.info("[$name] Resumed consuming new records")
     }
+
+    internal fun getProcessedRecordsCount() = processedRecords
 }

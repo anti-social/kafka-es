@@ -1,12 +1,11 @@
 package company.evo.bulk
 
 import company.evo.Timeout
-import company.evo.bulk.elasticsearch.BulkAction
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.channels.Channel.Factory.UNLIMITED
-import java.util.concurrent.atomic.AtomicBoolean
+import java.lang.Exception
 
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -74,14 +73,20 @@ class BulkActorImpl<in T>(
         delayBetweenBulksMs: Long = -1
 ) : BulkActor<T> {
 
-    private sealed class Msg {
-        data class Add<T>(val action: T) : Msg()
-        data class Flush(val processed: CompletableDeferred<Unit>? = null) : Msg()
+    companion object {
+        private val FLUSH_ON_TIMEOUT = ActionMsg.Flush()
+        private val CLOSED_MESSAGE = "Is closed"
     }
 
-    companion object {
-        private val FLUSH_ON_TIMEOUT = Msg.Flush()
-        private val CLOSED_MESSAGE = "Is closed"
+    private sealed class ActionMsg {
+        data class Add<T>(val action: T) : ActionMsg()
+        data class Flush(val processed: CompletableDeferred<Unit>? = null) : ActionMsg()
+    }
+
+    private sealed class BulkResultMsg {
+        object Ok : BulkResultMsg()
+        object Fail : BulkResultMsg()
+        data class Err(val caused: Exception) : BulkResultMsg()
     }
 
     private var epoch = System.nanoTime()
@@ -96,12 +101,12 @@ class BulkActorImpl<in T>(
     private var isClosed: Boolean = false
 
     private var job: Job = Job(parent = scope.coroutineContext[Job])
-    private var actionChannel: SendChannel<Msg> = startActionActor()
+    private var actionChannel: SendChannel<ActionMsg> = startActionActor()
     private var bulkChannel: SendChannel<List<T>> = startBulkActor()
-    private var bulkResultChannel = Channel<Boolean>(UNLIMITED)
+    private var bulkResultChannel = Channel<BulkResultMsg>(UNLIMITED)
     private val pendingBulks = AtomicInteger()
 
-    private suspend fun sendBulk(buffer: List<T>, flushMsg: Msg.Flush? = null) {
+    private suspend fun sendBulk(buffer: List<T>, flushMsg: ActionMsg.Flush? = null) {
         pendingBulks.incrementAndGet()
         if (flushMsg?.processed != null) {
             flushMsg.processed.complete(Unit)
@@ -111,20 +116,28 @@ class BulkActorImpl<in T>(
 
     override suspend fun put(action: T) {
         checkClosed()
-        actionChannel.send(Msg.Add(action))
+        actionChannel.send(ActionMsg.Add(action))
     }
 
     override suspend fun flush(): Boolean {
         checkClosed()
         return try {
             val processed = CompletableDeferred<Unit>()
-            val msg = Msg.Flush(processed)
+            val msg = ActionMsg.Flush(processed)
             actionChannel.send(msg)
             processed.await()
             val pendingBulkResults = pendingBulks.get()
             (1..pendingBulkResults).all {
-                bulkResultChannel.receive()
-                        .also { pendingBulks.decrementAndGet() }
+                when (val resultMsg = bulkResultChannel.receive()) {
+                    is BulkResultMsg.Ok -> true
+                    is BulkResultMsg.Fail -> false
+                    is BulkResultMsg.Err -> {
+                        restart()
+                        throw resultMsg.caused
+                    }
+                }.also {
+                    pendingBulks.decrementAndGet()
+                }
             }
         } catch (exc: CancellationException) {
             // If flush was cancelled the data is in inconsistent state
@@ -149,7 +162,10 @@ class BulkActorImpl<in T>(
         isClosed = false
     }
 
-    private fun startActionActor(): SendChannel<Msg> = scope.actor(job, capacity = 0) {
+    private fun startActionActor(): SendChannel<ActionMsg> = scope.actor(
+            job + CoroutineName("action-actor"),
+            capacity = 0
+    ) {
         var buffer = ArrayList<T>(bulkSize)
         while (true) {
             val msgOrNull = try {
@@ -168,7 +184,7 @@ class BulkActorImpl<in T>(
             val msg = msgOrNull ?: FLUSH_ON_TIMEOUT
 
             when (msg) {
-                is Msg.Add<*> -> {
+                is ActionMsg.Add<*> -> {
                     if (buffer.isEmpty()) {
                         // Note the time if it is first action
                         timeout?.reset()
@@ -180,7 +196,7 @@ class BulkActorImpl<in T>(
                         buffer = ArrayList()
                     }
                 }
-                is Msg.Flush -> {
+                is ActionMsg.Flush -> {
                     if (buffer.isEmpty()) {
                         msg.processed?.complete(Unit)
                     } else {
@@ -192,26 +208,40 @@ class BulkActorImpl<in T>(
         }
     }
 
-    private fun startBulkActor() = scope.actor<List<T>>(job, capacity = bulkQueueSize) {
+    private fun startBulkActor() = scope.actor<List<T>>(
+            job + CoroutineName("bulk-actor"),
+            capacity = bulkQueueSize
+    ) {
         bulkResultChannel = Channel(UNLIMITED)
         var isFirstBulk = true
         for (bulk in this) {
             if (bulksDelay != null && !isFirstBulk) {
                 delay(bulksDelay.timeLeft())
             }
-            val isWritten = bulkWriter.write(bulk)
+            val resultMsg = try {
+                if (bulkWriter.write(bulk)) {
+                    BulkResultMsg.Ok
+                } else {
+                    BulkResultMsg.Fail
+                }
+            } catch (exc: Exception) {
+                BulkResultMsg.Err(exc)
+            }
+            bulkResultChannel.send(resultMsg)
             bulksDelay?.reset()
-            bulkResultChannel.send(isWritten)
             isFirstBulk = false
         }
     }
 
     override fun close() {
+        if (isClosed) {
+            return
+        }
+        isClosed = true
         // TODO Should we really close channels?
         actionChannel.close()
         bulkChannel.close()
         bulkResultChannel.close()
         job.cancel()
-        isClosed = true
     }
 }

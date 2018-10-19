@@ -1,5 +1,6 @@
 package company.evo.kafka.elasticsearch
 
+import company.evo.bulk.BulkWriteException
 import io.kotlintest.*
 import io.kotlintest.matchers.instanceOf
 import io.kotlintest.matchers.string.contain
@@ -36,19 +37,39 @@ private fun SinkTask.startingWith(props: Map<String, String>, block: SinkTask.()
 
 class ElasticsearchSinkTaskTests : StringSpec() {
 
+    override fun tags(): Set<Tag> = setOf(company.evo.Task)
+
     companion object {
-        val TOPIC = "test"
-        val TOPIC_INDEX_MAP_TASK_PROPS = mutableMapOf(
+        private val TOPIC = "test"
+        private val TOPIC_INDEX_MAP_TASK_PROPS = mutableMapOf(
                 "name" to "test-connector",
                 "connection.url" to "http://localhost:9200",
                 "topic.index.map" to "test:test_index"
         )
-        val JUST_INDEX_TASK_PROPS = mutableMapOf(
+        private val INDEX_TASK_PROPS = mutableMapOf(
                 "name" to "test-connector",
                 "connection.url" to "http://localhost:9200",
                 "index" to "just_index"
         )
-        val DELETE_VALUE = mapOf(
+        private val INDEX_VALUE = mapOf(
+                "action" to mapOf(
+                        "index" to mapOf(
+                                "type" to "test_type",
+                                "id" to "1"
+                        )
+                ),
+                "source" to mapOf(
+                        "name" to "Test document",
+                        "status" to 0
+                )
+        )
+        private val INDEX_RECORD = SinkRecord(
+                TOPIC, 0,
+                null, Any(),
+                null, INDEX_VALUE,
+                0L
+        )
+        private val DELETE_VALUE = mapOf(
                 "action" to mapOf(
                         "delete" to mapOf(
                                 "type" to "test_type",
@@ -56,44 +77,74 @@ class ElasticsearchSinkTaskTests : StringSpec() {
                         )
                 )
         )
-        val DELETE_RECORD = SinkRecord(
+        private val DELETE_RECORD = SinkRecord(
                 TOPIC, 0,
                 null, Any(),
                 null, DELETE_VALUE,
                 0L
         )
-        const val DUMMY_BULK_RESULT = """{"took":1,"errors":false,"items":[]}"""
+
+        private const val OK_BULK_RESULT = """{"took":1,"errors":false,"items":[]}"""
+        private const val MAPPING_PARSING_ERROR_RESULT = """{"took":1,"errors":true,"items":[""" +
+                """{"index":{"_index":"just_index","_type":"test_type","_id":"1","status":400,"error":""" +
+                """{"type":"mapper_parsing_exception","reason":"failed to parse","caused_by":""" +
+                """{"type":"not_x_content_exception",""" +
+                """"reason":"Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes"}}}}""" +
+                """]}"""
+        private const val REJECTED_ERROR_RESULT = """{"took":1,"errors":true,"items":[""" +
+                """{"index":{"_index":"just_index","_type":"test_type","_id":"1","status":503,"error":""" +
+                """{"type":"es_rejected_execution_exception","reason":"rejected execution of ..."}}}""" +
+                """]}"""
     }
 
-    private class MockedHttpClientContext(
+    private class MockedTaskContext(
+            val task: ElasticsearchSinkTask,
+            val taskContext: SinkTaskContext,
             val httpClient: HttpAsyncClient,
             val httpRequest: CapturingSlot<HttpUriRequest>,
             val httpResponse: HttpResponse
     )
 
-    private fun withHttpClient(responseContent: String, statusCode: Int = 200, block: MockedHttpClientContext.() -> Unit) {
-        val ctx = MockedHttpClientContext(
-                mockk(), slot(), mockk()
-        )
+    private data class FakeResponse(val responseContent: String, val statusCode: Int = 200)
 
+    private fun withMockedTask(responses: List<FakeResponse>, block: MockedTaskContext.() -> Unit) {
+        val taskContext = mockk<SinkTaskContext>()
+        every {
+            taskContext.assignment()
+        } returns emptySet()
+        every {
+            taskContext.pause()
+        } just Runs
+        every {
+            taskContext.resume()
+        } just Runs
+
+        val httpClient = mockk<HttpAsyncClient>()
+        val httpRequest = slot<HttpUriRequest>()
+        val httpResponse = mockk<HttpResponse>()
         val future = slot<FutureCallback<HttpResponse>>()
         every {
-            ctx.httpClient.execute(capture(ctx.httpRequest), capture(future))
+            httpClient.execute(capture(httpRequest), capture(future))
         } answers {
-            future.captured.completed(ctx.httpResponse)
+            future.captured.completed(httpResponse)
             mockk()
         }
         every {
-            ctx.httpResponse.statusLine
-        } answers {
-            BasicStatusLine(ProtocolVersion("1.1", 1, 1), 200, "OK")
+            httpResponse.statusLine
+        } returnsMany responses.map {
+            BasicStatusLine(ProtocolVersion("1.1", 1, 1), it.statusCode, "OK")
         }
         every {
-            ctx.httpResponse.entity
-        } answers {
-            StringEntity(responseContent)
+            httpResponse.entity
+        } returnsMany responses.map {
+            StringEntity(it.responseContent)
         }
 
+        val task = ElasticsearchSinkTask(httpClient)
+                .apply { initialize(taskContext) }
+        val ctx = MockedTaskContext(
+                task, taskContext, httpClient, httpRequest, httpResponse
+        )
         ctx.block()
     }
 
@@ -112,8 +163,8 @@ class ElasticsearchSinkTaskTests : StringSpec() {
         }
 
         "empty sink records" {
-            withHttpClient(DUMMY_BULK_RESULT) {
-                ElasticsearchSinkTask(httpClient).startingWith(JUST_INDEX_TASK_PROPS) {
+            withMockedTask(listOf(FakeResponse(OK_BULK_RESULT))) {
+                task.startingWith(INDEX_TASK_PROPS) {
                     put(mutableListOf())
                     flush(null)
                 }
@@ -125,11 +176,29 @@ class ElasticsearchSinkTaskTests : StringSpec() {
         }
 
         "topic to index map setting" {
-            withHttpClient(DUMMY_BULK_RESULT) {
-                ElasticsearchSinkTask(httpClient).startingWith(JUST_INDEX_TASK_PROPS) {
+            withMockedTask(listOf(FakeResponse(OK_BULK_RESULT))) {
+                task.startingWith(TOPIC_INDEX_MAP_TASK_PROPS) {
                     put(mutableListOf(DELETE_RECORD))
                     preCommit(HashMap())
                 }
+
+                httpRequest.captured shouldBe instanceOf(HttpPost::class)
+                val capturedRequest = httpRequest.captured as HttpPost
+                capturedRequest.uri shouldBe URI("http://localhost:9200/_bulk")
+                capturedRequest.entity.readString() shouldBe """
+                    |{"delete":{"_index":"test_index","_type":"test_type","_id":"1"}}
+                    |""".trimMargin()
+            }
+        }
+
+        "index setting" {
+            withMockedTask(listOf(FakeResponse(OK_BULK_RESULT))) {
+                task.startingWith(INDEX_TASK_PROPS) {
+                    put(mutableListOf(DELETE_RECORD))
+                    preCommit(HashMap())
+                }
+
+                verify(exactly = 0) { taskContext.pause() }
 
                 httpRequest.captured shouldBe instanceOf(HttpPost::class)
                 val capturedRequest = httpRequest.captured as HttpPost
@@ -140,33 +209,49 @@ class ElasticsearchSinkTaskTests : StringSpec() {
             }
         }
 
-        "index setting" {
-            withHttpClient(DUMMY_BULK_RESULT) {
-                val taskContext = mockk<SinkTaskContext>()
-                every {
-                    taskContext.assignment()
-                } returns emptySet()
-                every {
-                    taskContext.pause()
-                } just Runs
-
-                ElasticsearchSinkTask(httpClient)
-                        .apply { initialize(taskContext) }
-                        .startingWith(JUST_INDEX_TASK_PROPS) {
-                            put(mutableListOf(DELETE_RECORD))
-                            preCommit(HashMap())
-                        }
-
-                verify(exactly = 0) {
-                    taskContext.pause()
+        "mapping parsing exception" {
+            withMockedTask(listOf(FakeResponse(MAPPING_PARSING_ERROR_RESULT))) {
+                task.startingWith(INDEX_TASK_PROPS) {
+                    put(mutableListOf(INDEX_RECORD))
+                    shouldThrow<ConnectException> {
+                        preCommit(HashMap())
+                    }.also {
+                        it.cause shouldBe instanceOf(BulkWriteException::class)
+                    }
                 }
 
                 httpRequest.captured shouldBe instanceOf(HttpPost::class)
                 val capturedRequest = httpRequest.captured as HttpPost
                 capturedRequest.uri shouldBe URI("http://localhost:9200/_bulk")
                 capturedRequest.entity.readString() shouldBe """
-                    |{"delete":{"_index":"just_index","_type":"test_type","_id":"1"}}
+                    |{"index":{"_index":"just_index","_type":"test_type","_id":"1"}}
+                    |{"name":"Test document","status":0}
                     |""".trimMargin()
+
+                verify(exactly = 0) { taskContext.pause() }
+            }
+        }
+
+        "pausing and resuming task" {
+            withMockedTask(listOf(
+                    FakeResponse(REJECTED_ERROR_RESULT),
+                    FakeResponse(OK_BULK_RESULT)
+            )) {
+                task.startingWith(INDEX_TASK_PROPS) {
+                    put(listOf(INDEX_RECORD))
+
+                    preCommit(emptyMap())
+                    verify(exactly = 1) { taskContext.pause() }
+                    verify(exactly = 0) { taskContext.resume() }
+
+                    put(emptyList())
+                    verify(exactly = 1) { taskContext.pause() }
+                    verify(exactly = 1) { taskContext.resume() }
+
+                    preCommit(emptyMap())
+                    verify(exactly = 1) { taskContext.pause() }
+                    verify(exactly = 1) { taskContext.resume() }
+                }
             }
         }
     }

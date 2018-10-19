@@ -22,7 +22,6 @@ class JsonProcessor : Processor {
             valueOrPayload
         }
         val actionData: Map<*, *> = castOrFail(payload["action"], "action")
-        println(actionData)
         val actionEntry = actionData.iterator().next()
         val opType = castOrFail<String>(actionEntry.key)
         val actionMeta = castOrFail<Map<*, *>>(actionEntry.value)
