@@ -45,6 +45,7 @@ class ElasticBulkWriter(
 //                "version_conflict_engine_exception",
                 "elasticsearch_parse_exception",
                 "parsing_exception",
+//                "mapper_parsing_exception",
                 "routing_missing_exception"
         )
 
@@ -158,7 +159,20 @@ class ElasticBulkWriter(
     ): String {
         return "$bulkUrl: $message:\n" +
                 items.joinToString("\n") {
-                    "\t[${it.index}/${it.type}/${it.id}] ${it.error?.type}: ${it.error?.reason}"
+                    val error = it.error
+                    val reason = if (error != null) {
+                        "${error.type}: ${error.reason}".let { msg ->
+                            val causedBy = error.causedBy?.reason
+                            if (error.causedBy != null) {
+                                "$msg, caused by $causedBy"
+                            } else {
+                                msg
+                            }
+                        }
+                    } else {
+                        "Unknown reason"
+                    }
+                    "\t[${it.index}/${it.type}/${it.id}] $reason"
                 }
     }
 }
