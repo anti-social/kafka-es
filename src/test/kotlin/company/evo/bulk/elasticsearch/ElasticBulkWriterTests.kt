@@ -194,7 +194,29 @@ class ElasticBulkWriterTests : StringSpec() {
             doc.sourceAsMap should containExactly(
                     mapOf("name" to "Test name", "status" to 1, "counter" to 2)
             )
+        }
 
+        "string source" {
+            val bulkWriter = ElasticBulkWriter(httpClient, listOf(ES6_URL))
+            val source = """{"name":"Test document","status":0}"""
+            runBlocking {
+                val action = BulkAction(
+                        BulkAction.Operation.INDEX,
+                        index = TEST_INDEX_NAME,
+                        type = "_doc",
+                        id = "1",
+                        source = source
+                )
+                bulkWriter.write(listOf(action)) shouldBe true
+            }
+            refreshIndex()
+
+            val doc = getDoc("1")
+            doc.id shouldBe "1"
+            doc.source should containExactly(mapOf(
+                    "name" to "Test document",
+                    "status" to 0
+            ))
         }
     }
 }

@@ -59,7 +59,17 @@ data class BulkAction(
         objectMapper.writeValue(out, this)
         if (source != null) {
             out.write(NEW_LINE)
-            objectMapper.writeValue(out, source)
+            when (source) {
+                is ByteArray -> {
+                    out.write(source)
+                }
+                is String -> {
+                    out.write(source.toByteArray(Charsets.UTF_8))
+                }
+                else -> {
+                    objectMapper.writeValue(out, source)
+                }
+            }
         }
         out.write(NEW_LINE)
     }
