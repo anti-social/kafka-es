@@ -16,9 +16,7 @@ import company.evo.Timeout
 import company.evo.bulk.BulkActor
 import company.evo.bulk.BulkSink
 import company.evo.bulk.BulkWriteException
-import company.evo.bulk.elasticsearch.BulkAction
-import company.evo.bulk.elasticsearch.ElasticBulkHasher
-import company.evo.bulk.elasticsearch.ElasticBulkWriter
+import company.evo.bulk.elasticsearch.*
 import kotlinx.coroutines.*
 
 import kotlin.coroutines.CoroutineContext
@@ -40,7 +38,9 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         private val HTTP_CLIENT: CloseableHttpAsyncClient = HttpAsyncClientBuilder.create()
                 .setDefaultIOReactorConfig(
                         IOReactorConfig.custom()
-                                .setIoThreadCount(2)
+                                .setIoThreadCount(
+                                        System.getProperty("kafka-es.io.threads.count")?.toInt() ?: 2
+                                )
                                 .build()
                 )
                 .build()
@@ -100,10 +100,17 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             this.job = Job()
             val hasher = ElasticBulkHasher()
             val concurrency = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS)
+            val bulkWriter = ElasticBulkWriter(
+                    httpClient, esUrls,
+                    retryPolicy= ExponentialRetryPolicy(
+                            config.getLong(Config.RETRY_INTERVAL),
+                            config.getLong(Config.MAX_RETRY_INTERVAL)
+                    )
+            )
             logger.info("Starting $concurrency bulk sinks")
             this.sink = BulkSink(hasher, concurrency = concurrency) {
                 BulkActor(
-                        this, ElasticBulkWriter(httpClient, esUrls),
+                        this, bulkWriter,
                         bulkSize = config.getInt(Config.BULK_SIZE),
                         bulkQueueSize = config.getInt(Config.QUEUE_SIZE),
                         delayBetweenBulksMs = config.getLong(Config.DELAY_BEETWEEN_REQUESTS)

@@ -7,11 +7,12 @@ import com.fasterxml.jackson.module.kotlin.readValue
 
 import company.evo.bulk.BulkWriteException
 import company.evo.bulk.BulkWriter
-import kotlinx.coroutines.delay
 
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 
+import kotlin.math.pow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 import org.apache.http.HttpResponse
@@ -25,11 +26,27 @@ import org.apache.http.nio.client.HttpAsyncClient
 
 import org.slf4j.LoggerFactory
 
+
+interface RetryPolicy {
+    fun nextRetryDelay(retry: Int): Long
+}
+
+class ExponentialRetryPolicy(
+        private val minRetryDelayMs: Long, private val maxRetryDelayMs: Long
+) : RetryPolicy {
+    override fun nextRetryDelay(retry: Int): Long {
+        if (retry <= 0) {
+            return 0
+        }
+        return minRetryDelayMs.toDouble().pow(retry).toLong().coerceAtMost(maxRetryDelayMs)
+    }
+}
+
 class ElasticBulkWriter(
         private val httpClient: HttpAsyncClient,
         urls: List<String>,
         private val maxRetries: Int = 0,
-        private val retryDelayMs: Long = 0
+        private val retryPolicy: RetryPolicy
 ) : BulkWriter<BulkAction> {
 
     companion object {
@@ -67,7 +84,8 @@ class ElasticBulkWriter(
             if (retries > maxRetries) {
                 return false
             }
-            if (retries > 0 && retryDelayMs > 0) {
+            val retryDelayMs = retryPolicy.nextRetryDelay(retries)
+            if (retryDelayMs > 0) {
                 delay(retryDelayMs)
             }
 
@@ -176,7 +194,9 @@ class ElasticBulkWriter(
     }
 }
 
-suspend fun HttpAsyncClient.awaitResponse(request: HttpUriRequest): HttpResponse = suspendCancellableCoroutine { cont ->
+suspend fun HttpAsyncClient.awaitResponse(
+        request: HttpUriRequest
+): HttpResponse = suspendCancellableCoroutine { cont ->
     val future = execute(request, object : FutureCallback<HttpResponse> {
         override fun completed(result: HttpResponse) {
             cont.resumeWith(Result.success(result))
