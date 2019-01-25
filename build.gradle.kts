@@ -69,11 +69,13 @@ tasks {
     }
 }
 
-java.sourceSets {
-    getByName("main").java.srcDirs(
+sourceSets["main"].java {
+    srcDir(
             Paths.get(protobuf.protobuf.generatedFilesBaseDir, "main", "java")
     )
-    getByName("test").java.srcDirs(
+}
+sourceSets["test"].java {
+    srcDir(
             Paths.get(protobuf.protobuf.generatedFilesBaseDir, "test", "java")
     )
 }
@@ -100,13 +102,13 @@ val compileTestKotlin by tasks.getting(KotlinCompile::class) {
 val jar by tasks.getting(Jar::class)
 
 val sourceJar by tasks.creating(Jar::class) {
-    classifier = "sources"
-    from(java.sourceSets["main"].allSource)
+    archiveClassifier.set("source")
+    from(sourceSets["main"].allSource)
 }
 
 publishing {
-    (publications) {
-        "jar"(MavenPublication::class) {
+    publications {
+        create<MavenPublication>("jar") {
             groupId = "company.evo"
             artifactId = project.name
             version = project.version.toString()
