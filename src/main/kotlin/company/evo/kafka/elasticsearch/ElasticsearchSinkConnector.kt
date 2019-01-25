@@ -46,6 +46,8 @@ class ElasticsearchSinkConnector : SinkConnector() {
 class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) {
     companion object {
         val CONNECTION_URL = "connection.url"
+        val COMPRESSION_ENABLED = "compression.enabled"
+        val COMPRESSION_ENABLED_DEFAULT = false
         val INDEX = "index"
         val TOPIC_INDEX_MAP = "topic.index.map"
         val BULK_SIZE = "bulk.size"
@@ -73,6 +75,13 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                     ConfigDef.Importance.HIGH,
                     "List of Elasticsearch HTTP connection URLs " +
                             "e.g. ``http://es1:9200,http://es2:9200``"
+            )
+            CONFIG.define(
+                    COMPRESSION_ENABLED,
+                    ConfigDef.Type.BOOLEAN,
+                    COMPRESSION_ENABLED_DEFAULT,
+                    ConfigDef.Importance.MEDIUM,
+                    "Enables gzip compression"
             )
             CONFIG.define(
                     INDEX,

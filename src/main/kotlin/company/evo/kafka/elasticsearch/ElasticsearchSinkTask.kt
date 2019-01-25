@@ -80,6 +80,9 @@ class ElasticsearchSinkTask() : SinkTask() {
                                     .multiThreaded(true)
                                     .connTimeout(requestTimeoutMs.toInt())
                                     .readTimeout(requestTimeoutMs.toInt())
+                                    .requestCompressionEnabled(
+                                            config.getBoolean(Config.COMPRESSION_ENABLED)
+                                    )
                                     .build()
                     )
                 }
