@@ -21,6 +21,8 @@ repositories {
      mavenCentral()
 }
 
+group = "company.evo"
+
 val grgit: org.ajoberstar.grgit.Grgit by extra
 val gitDescribe = grgit.describe(mapOf("match" to listOf("v*")))
         ?: "v0.0.0-unknown"
@@ -110,7 +112,7 @@ val sourceJar by tasks.creating(Jar::class) {
 publishing {
     publications {
         create<MavenPublication>("jar") {
-            groupId = "company.evo"
+            groupId = project.group.toString()
             artifactId = project.name
             version = project.version.toString()
             from(components["java"])
