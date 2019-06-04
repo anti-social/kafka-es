@@ -1,7 +1,7 @@
 _default:
   gradle-home: &gradle-home /work/.gradle
   cmd-opts: &cmd-opts
-    container: jdk9
+    container: jdk
     user-id: 1
     external-user-id: 0
     prerequisites: [_mk-gradle-user-home]
@@ -10,40 +10,27 @@ _default:
       /work/.gradle/caches: !CacheDir gradle-cache
 
 containers:
-  jdk8:
+  jdk:
     environ:
-      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
       GRADLE_USER_HOME: *gradle-home
     setup:
-    - !Ubuntu xenial
-    - !Install
-      - openjdk-8-jdk-headless
-    - !*Unpack
-      - &install-gradle
-        - !EnsureDir /opt/gradle
-        - !Unzip
-          url: https://services.gradle.org/distributions/gradle-5.4.1-bin.zip
-          subdir: gradle-5.4.1
-          path: /opt/gradle
-        - !Sh ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle
-
-  jdk9:
-    environ:
-      JAVA_HOME: /usr/lib/jvm/java-9-openjdk-amd64
-      GRADLE_USER_HOME: *gradle-home
-    setup:
-    - !UbuntuRelease {codename: artful}
+    - !Ubuntu bionic
     - !UbuntuUniverse
     - !Install
       - ca-certificates-java
-      - openjdk-9-jdk-headless
+      - openjdk-11-jdk-headless
     - !Sh update-ca-certificates
-    - !*Unpack
-      - *install-gradle
+    - !EnsureDir /opt/gradle
+    - !Unzip
+      url: https://services.gradle.org/distributions/gradle-5.4.1-bin.zip
+      subdir: gradle-5.4.1
+      path: /opt/gradle
+    - !Sh ln -s /opt/gradle/bin/gradle /usr/local/bin/gradle
 
 commands:
   _mk-gradle-user-home: !Command
-    container: jdk9
+    container: jdk
     run: mkdir -p $GRADLE_USER_HOME/caches
 
   gradle: !Command
