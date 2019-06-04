@@ -4,14 +4,13 @@ import com.jfrog.bintray.gradle.BintrayExtension
 import java.nio.file.Paths
 import java.util.Date
 import org.gradle.jvm.tasks.Jar
-import org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapper
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     application
     java
     `maven-publish`
-    id("org.jetbrains.kotlin.jvm") version "1.2.51"
+    id("org.jetbrains.kotlin.jvm") version "1.3.31"
     id("com.google.protobuf") version "0.8.8"
     id("com.jfrog.bintray") version "1.8.2"
     id("org.ajoberstar.grgit") version "2.2.1"
@@ -32,6 +31,7 @@ val kafkaVersion = "1.0.2"
 val jestVersion = "5.3.3"
 val protobufVersion = "3.6.1"
 val junitJupiterVersion = "5.2.0"
+val assertjVersion = "3.8.0"
 
 dependencies {
     compile(kotlin("stdlib-jdk8"))
@@ -45,7 +45,7 @@ dependencies {
 
     testCompile("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
     testRuntime("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
-    testCompile("org.assertj:assertj-core:3.8.0")
+    testCompile("org.assertj:assertj-core:$assertjVersion")
 }
 
 application {
