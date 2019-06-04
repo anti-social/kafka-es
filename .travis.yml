@@ -17,7 +17,7 @@ env:
   - GRADLE_ARGS="--no-daemon --info"
 
 before_script:
-- vagga _build jdk9
+- vagga _build jdk
 
 script:
 - |
