@@ -2,7 +2,7 @@ package company.evo.kafka.elasticsearch
 
 import java.util.Objects
 
-import com.google.protobuf.Message
+import com.google.protobuf.MessageOrBuilder
 
 import io.searchbox.client.JestClient
 import io.searchbox.client.JestClientFactory
@@ -158,12 +158,12 @@ class ElasticsearchSinkTask() : SinkTask() {
             is Map<*,*> -> {
                 jsonProcessor.process(value, index)
             }
-            is Message -> {
+            is MessageOrBuilder -> {
                 protobufProcessor.process(value, index)
             }
             else -> {
                 throw IllegalArgumentException(
-                        "Expected one of [${Map::class.java}, ${Message::class.java}] " +
+                        "Expected one of [${Map::class.java}, ${MessageOrBuilder::class.java}] " +
                                 "but was: ${value?.javaClass}"
                 )
             }
