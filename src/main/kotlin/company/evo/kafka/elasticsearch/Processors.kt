@@ -36,7 +36,6 @@ class JsonProcessor : Processor {
                 val sourceData: Map<*, *> = castOrFail(payload["source"], "source")
                 val sourceDataSerialized = serializer.toJson(sourceData)
                 actionBuilder.setSource(sourceDataSerialized)
-                actionBuilder.setSource(sourceData)
             }
             "delete" -> {}
             else -> {
