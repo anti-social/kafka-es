@@ -1,5 +1,8 @@
 package company.evo.kafka.elasticsearch
 
+import com.google.gson.GsonBuilder
+import com.google.gson.Gson
+import io.searchbox.client.AbstractJestClient.ELASTIC_SEARCH_DATE_FORMAT
 import com.google.protobuf.Message
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
@@ -13,6 +16,11 @@ interface Processor {
 }
 
 class JsonProcessor : Processor {
+    private val serializer: Gson = GsonBuilder()
+        .setDateFormat(ELASTIC_SEARCH_DATE_FORMAT)
+        .serializeNulls()
+        .create();
+
     override fun process(value: Any, index: String?): AnyBulkableAction {
         val valueOrPayload = castOrFail<Map<*, *>>(value)
         val payload: Map<*, *> = if (valueOrPayload.containsKey("payload")) {
@@ -26,7 +34,8 @@ class JsonProcessor : Processor {
         when (actionEntry.key) {
             "index", "create", "update" -> {
                 val sourceData: Map<*, *> = castOrFail(payload["source"], "source")
-                actionBuilder.setSource(sourceData)
+                val sourceDataSerialized = serializer.toJson(sourceData)
+                actionBuilder.setSource(sourceDataSerialized)
             }
             "delete" -> {}
             else -> {

@@ -144,7 +144,10 @@ class JsonProcessorTests {
                                 )
                         ),
                         "source" to mapOf(
-                                "doc" to mapOf("name" to "Updated name")
+                                "doc" to mapOf(
+                                        "name" to "Updated name",
+                                        "custom_status" to null
+                                )
                         )
                 ),
                 "test_index")
@@ -154,7 +157,7 @@ class JsonProcessorTests {
                 .hasFieldOrPropertyWithValue("id", "123")
                 .hasFieldOrPropertyWithValue("bulkMethodName", "update")
                 .returns(
-                        """{"doc":{"name":"Updated name"}}""",
+                        """{"doc":{"name":"Updated name","custom_status":null}}""",
                         {
                             (it as AnyBulkableAction)
                                     .getData(Gson())
