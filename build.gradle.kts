@@ -70,6 +70,11 @@ tasks {
     val test by getting(Test::class) {
         useJUnitPlatform()
     }
+    val jacocoTestReport by getting(JacocoReport::class) {
+        reports {
+            xml.isEnabled = true
+        }
+    }
 }
 
 sourceSets["main"].java {
