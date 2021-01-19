@@ -49,7 +49,7 @@ dependencies {
 }
 
 application {
-    mainClassName = "org.apache.kafka.connect.cli.ConnectStandalone"
+    mainClass.set("org.apache.kafka.connect.cli.ConnectStandalone")
     applicationDefaultJvmArgs = listOf(
             "-Dlog4j.configuration=file:config/connect-log4j.properties"
     )
