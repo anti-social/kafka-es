@@ -11,6 +11,7 @@ plugins {
     application
     java
     `maven-publish`
+    jacoco
     id("org.jetbrains.kotlin.jvm") version "1.4.21"
     id("com.google.protobuf") version "0.8.14"
     id("org.ajoberstar.grgit") version "4.1.0"

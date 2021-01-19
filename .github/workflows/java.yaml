@@ -28,6 +28,7 @@ jobs:
         set -eux
         ./gradlew assemble $GRADLE_ARGS
         ./gradlew check $GRADLE_ARGS
+        ./gradlew jacocoTestReport $GRADLE_ARGS
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
