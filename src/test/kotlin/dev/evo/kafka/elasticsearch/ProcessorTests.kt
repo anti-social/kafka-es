@@ -1,4 +1,4 @@
-package company.evo.kafka.elasticsearch
+package dev.evo.kafka.elasticsearch
 
 import com.google.gson.Gson
 import com.google.protobuf.Int32Value
@@ -10,10 +10,10 @@ import org.assertj.core.api.Assertions.*
 
 import org.junit.jupiter.api.Test
 
-import company.evo.kafka.TestProto
-import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
-import company.evo.kafka.elasticsearch.BulkActionProto.DeleteMessage
-import company.evo.kafka.elasticsearch.BulkActionProto.Script
+import dev.evo.kafka.TestProto
+import dev.evo.kafka.elasticsearch.BulkActionProto.BulkAction
+import dev.evo.kafka.elasticsearch.BulkActionProto.DeleteMessage
+import dev.evo.kafka.elasticsearch.BulkActionProto.Script
 
 
 class JsonProcessorTests {

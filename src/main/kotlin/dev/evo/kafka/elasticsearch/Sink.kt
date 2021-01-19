@@ -1,4 +1,4 @@
-package company.evo.kafka.elasticsearch
+package dev.evo.kafka.elasticsearch
 
 import java.util.LinkedList
 import java.util.concurrent.FutureTask
@@ -12,7 +12,7 @@ import io.searchbox.client.JestClient
 
 import org.slf4j.LoggerFactory
 
-import company.evo.kafka.Timeout
+import dev.evo.kafka.Timeout
 
 
 internal class Sink(

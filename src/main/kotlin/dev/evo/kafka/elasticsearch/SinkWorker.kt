@@ -1,4 +1,4 @@
-package company.evo.kafka.elasticsearch
+package dev.evo.kafka.elasticsearch
 
 import java.io.IOException
 import java.util.LinkedList
@@ -16,7 +16,7 @@ import io.searchbox.core.BulkResult
 
 import org.slf4j.LoggerFactory
 
-import company.evo.kafka.Timeout
+import dev.evo.kafka.Timeout
 
 
 internal class SinkWorker(

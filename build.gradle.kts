@@ -21,7 +21,7 @@ repositories {
      mavenCentral()
 }
 
-group = "company.evo"
+group = "dev.evo"
 
 val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
         ?: "v0.0.0-unknown"

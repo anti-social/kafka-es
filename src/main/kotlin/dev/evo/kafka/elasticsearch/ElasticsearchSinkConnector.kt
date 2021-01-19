@@ -1,4 +1,4 @@
-package company.evo.kafka.elasticsearch
+package dev.evo.kafka.elasticsearch
 
 import org.apache.kafka.common.config.AbstractConfig
 import org.apache.kafka.common.config.ConfigDef

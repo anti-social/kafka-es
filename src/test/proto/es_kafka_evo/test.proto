@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package evo_kafka_es;
 
-option java_package = "company.evo.kafka";
+option java_package = "dev.evo.kafka";
 option java_outer_classname = "TestProto";
 
 import "indexator/bulk_action.proto";

@@ -1,4 +1,4 @@
-package company.evo.kafka.elasticsearch
+package dev.evo.kafka.elasticsearch
 
 import com.google.gson.GsonBuilder
 import com.google.gson.Gson
@@ -7,8 +7,8 @@ import com.google.protobuf.Message
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 
-import company.evo.kafka.castOrFail
-import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
+import dev.evo.kafka.castOrFail
+import dev.evo.kafka.elasticsearch.BulkActionProto.BulkAction
 
 
 interface Processor {

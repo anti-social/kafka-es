@@ -1,4 +1,4 @@
-package company.evo.kafka
+package dev.evo.kafka
 
 import java.util.concurrent.TimeoutException
 

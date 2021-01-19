@@ -1,4 +1,4 @@
-package company.evo.kafka.elasticsearch
+package dev.evo.kafka.elasticsearch
 
 import java.util.Objects
 
@@ -19,7 +19,7 @@ import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
 
-import company.evo.kafka.Timeout
+import dev.evo.kafka.Timeout
 import org.apache.kafka.connect.runtime.ConnectorConfig
 
 

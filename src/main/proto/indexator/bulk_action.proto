@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package indexator;
 
-option java_package = "company.evo.kafka.elasticsearch";
+option java_package = "dev.evo.kafka.elasticsearch";
 option java_outer_classname = "BulkActionProto";
 
 import "google/protobuf/struct.proto";

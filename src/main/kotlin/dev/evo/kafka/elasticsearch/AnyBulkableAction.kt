@@ -1,11 +1,11 @@
-package company.evo.kafka.elasticsearch
+package dev.evo.kafka.elasticsearch
 
 import io.searchbox.action.*
 import io.searchbox.core.*
 import io.searchbox.params.Parameters
 
-import company.evo.kafka.elasticsearch.BulkActionProto.BulkAction
-import company.evo.kafka.castOrFail
+import dev.evo.kafka.elasticsearch.BulkActionProto.BulkAction
+import dev.evo.kafka.castOrFail
 
 
 class AnyBulkableAction private constructor(builder: RealBuilder) :

@@ -1,4 +1,4 @@
-package company.evo.kafka
+package dev.evo.kafka
 
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.errors.DataException
@@ -8,7 +8,7 @@ import org.assertj.core.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.BeforeEach
 
-import company.evo.kafka.TestProto.TestDocument
+import dev.evo.kafka.TestProto.TestDocument
 import org.apache.kafka.connect.data.SchemaAndValue
 
 
@@ -22,7 +22,7 @@ class ProtobufConverterTests {
     @BeforeEach
     fun configureConverter() {
         converter.configure(
-                mutableMapOf("protobuf.class" to "company.evo.kafka.TestProto\$TestDocument"),
+                mutableMapOf("protobuf.class" to "dev.evo.kafka.TestProto\$TestDocument"),
                 false
         )
     }
@@ -41,24 +41,24 @@ class ProtobufConverterTests {
     fun testMissingProtobufClass() {
         assertThatThrownBy {
             converter.configure(
-                    mutableMapOf("protobuf.class" to "company.evo.kafka.UnknownMessage"),
+                    mutableMapOf("protobuf.class" to "dev.evo.kafka.UnknownMessage"),
                     false)
         }
                 .isInstanceOf(ConfigException::class.java)
                 .hasMessageContaining(
-                        "Class company.evo.kafka.UnknownMessage could not be found")
+                        "Class dev.evo.kafka.UnknownMessage could not be found")
     }
 
     @Test
     fun testInvalidProtobufClass() {
         assertThatThrownBy {
             converter.configure(
-                    mutableMapOf("protobuf.class" to "company.evo.kafka.ProtobufConverter"),
+                    mutableMapOf("protobuf.class" to "dev.evo.kafka.ProtobufConverter"),
                     false)
         }
                 .isInstanceOf(ConfigException::class.java)
                 .hasMessageContaining(
-                        "company.evo.kafka.ProtobufConverter class has no method parseFrom")
+                        "dev.evo.kafka.ProtobufConverter class has no method parseFrom")
     }
 
     @Test
