@@ -27,7 +27,7 @@ val gitDescribe = grgit.describe(mapOf("match" to listOf("v*")))
         ?: "v0.0.0-unknown"
 version = gitDescribe.trimStart('v')
 
-val kafkaVersion = "1.0.2"
+val kafkaVersion = "2.7.0"
 val jestVersion = "6.3.1"
 val protobufVersion = "3.6.1"
 val junitJupiterVersion = "5.2.0"
