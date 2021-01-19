@@ -366,7 +366,7 @@ class ProtobufProcessorTests {
         assertThat(action.getParameter("parent")).isEmpty()
         assertThat(action.bulkMethodName).isEqualTo("update")
         assertThat(action.getData(gson)).isEqualTo(
-                """{"script":{"lang":"painless","source":"ctx._source.counter += params.count","params":{"count":4.0}},"upsert":{"name":"Teo","counter":"1"}}"""
+                """{"script":{"lang":"painless","source":"ctx._source.counter +\u003d params.count","params":{"count":4.0}},"upsert":{"name":"Teo","counter":"1"}}"""
         )
     }
 

@@ -11,7 +11,7 @@ plugins {
     java
     `maven-publish`
     id("org.jetbrains.kotlin.jvm") version "1.4.21"
-    id("com.google.protobuf") version "0.8.8"
+    id("com.google.protobuf") version "0.8.14"
     id("com.jfrog.bintray") version "1.8.2"
     id("org.ajoberstar.grgit") version "2.2.1"
 }
@@ -29,7 +29,7 @@ version = gitDescribe.trimStart('v')
 
 val kafkaVersion = "2.7.0"
 val jestVersion = "6.3.1"
-val protobufVersion = "3.6.1"
+val protobufVersion = "3.14.0"
 val junitJupiterVersion = "5.2.0"
 val assertjVersion = "3.8.0"
 
