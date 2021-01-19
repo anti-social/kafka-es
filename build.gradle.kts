@@ -1,9 +1,12 @@
 import com.google.protobuf.gradle.protobuf
 import com.google.protobuf.gradle.protoc
 import com.jfrog.bintray.gradle.BintrayExtension
+
 import java.nio.file.Paths
 import java.util.Date
+
 import org.gradle.jvm.tasks.Jar
+
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -13,7 +16,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "1.4.21"
     id("com.google.protobuf") version "0.8.14"
     id("com.jfrog.bintray") version "1.8.2"
-    id("org.ajoberstar.grgit") version "2.2.1"
+    id("org.ajoberstar.grgit") version "4.1.0"
 }
 
 repositories {
@@ -22,8 +25,7 @@ repositories {
 
 group = "company.evo"
 
-val grgit: org.ajoberstar.grgit.Grgit by extra
-val gitDescribe = grgit.describe(mapOf("match" to listOf("v*")))
+val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
         ?: "v0.0.0-unknown"
 version = gitDescribe.trimStart('v')
 
