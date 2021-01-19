@@ -141,12 +141,13 @@ publishing {
     repositories {
         maven {
             name = "test"
-            url = uri("file://${buildDir}/testMavenRepo")
+            url = uri("file://${buildDir}/repos/testMaven")
         }
 
         maven {
             val bintrayPackageName = project.name
-            val bintrayRepoName = "maven"
+            val bintrayRepoName = findProperty("bintrayRepoName")?.toString()
+                    ?: System.getenv("BINTRAY_REPO_NAME")
             val bintrayUsername = findProperty("bintrayUser")?.toString()
                     ?: System.getenv("BINTRAY_USER")
             val bintrayApiKey = findProperty("bintrayApiKey")?.toString()
