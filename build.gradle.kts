@@ -34,18 +34,18 @@ val junitJupiterVersion = "5.2.0"
 val assertjVersion = "3.8.0"
 
 dependencies {
-    compile(kotlin("stdlib-jdk8"))
-    compile("org.apache.kafka:connect-api:$kafkaVersion")
-    compile("org.apache.kafka:connect-json:$kafkaVersion")
-    compile("org.apache.kafka:connect-runtime:$kafkaVersion")
-    compile("io.searchbox:jest:$jestVersion")
-    compile("io.searchbox:jest-common:$jestVersion")
-    compile("com.google.protobuf:protobuf-java:$protobufVersion")
-    compile("com.google.protobuf:protobuf-java-util:$protobufVersion")
+    implementation(kotlin("stdlib-jdk8"))
+    implementation("org.apache.kafka:connect-api:$kafkaVersion")
+    implementation("org.apache.kafka:connect-json:$kafkaVersion")
+    implementation("org.apache.kafka:connect-runtime:$kafkaVersion")
+    implementation("io.searchbox:jest:$jestVersion")
+    implementation("io.searchbox:jest-common:$jestVersion")
+    implementation("com.google.protobuf:protobuf-java:$protobufVersion")
+    implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
 
-    testCompile("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
-    testRuntime("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
-    testCompile("org.assertj:assertj-core:$assertjVersion")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
+    testImplementation("org.assertj:assertj-core:$assertjVersion")
 }
 
 application {
