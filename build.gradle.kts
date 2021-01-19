@@ -1,9 +1,7 @@
 import com.google.protobuf.gradle.protobuf
 import com.google.protobuf.gradle.protoc
-import com.jfrog.bintray.gradle.BintrayExtension
 
 import java.nio.file.Paths
-import java.util.Date
 
 import org.gradle.jvm.tasks.Jar
 
@@ -15,7 +13,6 @@ plugins {
     `maven-publish`
     id("org.jetbrains.kotlin.jvm") version "1.4.21"
     id("com.google.protobuf") version "0.8.14"
-    id("com.jfrog.bintray") version "1.8.2"
     id("org.ajoberstar.grgit") version "4.1.0"
 }
 
@@ -119,29 +116,52 @@ publishing {
             version = project.version.toString()
             from(components["java"])
             artifact(sourceJar)
+
+            pom {
+                licenses {
+                    license {
+                        name.set("The Apache License, Version 2.0")
+                        url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                }
+                developers {
+                    developer {
+                        name.set("Alexander Koval")
+                        email.set("kovalidis@gmail.com")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:git://github.com/anti-social/kafka-es.git")
+                    url.set("https://github.com/anti-social/kafka-es")
+                }
+            }
         }
     }
-}
 
-bintray {
-    user = properties["bintrayUser"]?.toString()
-            ?: System.getenv("BINTRAY_USER")
-    key = properties["bintrayApiKey"]?.toString()
-            ?: System.getenv("BINTRAY_API_KEY")
-    pkg(delegateClosureOf<BintrayExtension.PackageConfig> {
-        repo = "maven"
-        name = project.name
-        userOrg = "evo"
-        setLicenses("Apache-2.0")
-        setLabels("kafka-connect", "elasticsearch-connector", "kafka-elasticsearch-sink")
-        vcsUrl = "https://github.com/anti-social/kafka-es.git"
-        version(delegateClosureOf<BintrayExtension.VersionConfig> {
-            name = "kafka-es"
-            released = Date().toString()
-            vcsTag = gitDescribe
-        })
-    })
-    setPublications("jar")
-    publish = true
-    dryRun = hasProperty("bintrayDryRun")
+    repositories {
+        maven {
+            name = "test"
+            url = uri("file://${buildDir}/testMavenRepo")
+        }
+
+        maven {
+            val bintrayPackageName = project.name
+            val bintrayRepoName = "maven"
+            val bintrayUsername = findProperty("bintrayUser")?.toString()
+                    ?: System.getenv("BINTRAY_USER")
+            val bintrayApiKey = findProperty("bintrayApiKey")?.toString()
+                    ?: System.getenv("BINTRAY_API_KEY")
+            val bintrayPublish = findProperty("bintrayPublish")?.toString()
+                    ?: System.getenv("BINTRAY_PUBLISH")
+                    ?: "0"
+
+            name = "bintray"
+            url = uri("https://api.bintray.com/maven/$bintrayUsername/$bintrayRepoName/$bintrayPackageName/;publish=$bintrayPublish")
+
+            credentials {
+                username = bintrayUsername
+                password = bintrayApiKey
+            }
+        }
+    }
 }
