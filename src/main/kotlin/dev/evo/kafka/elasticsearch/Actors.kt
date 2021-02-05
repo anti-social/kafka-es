@@ -45,22 +45,31 @@ class RouterActor<T>(
     outChannels: Array<SendChannel<SinkMsg<T>>>,
     router: (T) -> Int,
 ) {
+    init {
+        require(outChannels.isNotEmpty())
+    }
+
     private val job = scope.launch {
         while (true) {
             when (val msg = inChannel.receiveOrNull()) {
                 is SinkMsg.Data -> {
-                    val data = msg.data
-                    val groupCapacity = data.size * 3 / 4
-                    val groups = data.fold(
-                        Array<MutableList<T>>(outChannels.size) { ArrayList(groupCapacity) }
-                    ) { groups, elem ->
-                        val groupIx = (router(elem) and 0x7FFF_FFFF) % outChannels.size
-                        groups[groupIx].add(elem)
-                        groups
-                    }
-                    for ((channel, groupedData) in outChannels.zip(groups)) {
-                        if (groupedData.isNotEmpty()) {
-                            channel.send(SinkMsg.Data(groupedData))
+                    if (outChannels.size == 1) {
+                        outChannels[0].send(msg)
+                    } else {
+                        val data = msg.data
+                        val baseGroupCapacity = (data.size / outChannels.size)
+                        val groupCapacity = baseGroupCapacity + baseGroupCapacity / 10
+                        val groups = data.fold(
+                            Array<MutableList<T>>(outChannels.size) { ArrayList(groupCapacity) }
+                        ) { groups, elem ->
+                            val groupIx = (router(elem) and 0x7FFF_FFFF) % outChannels.size
+                            groups[groupIx].add(elem)
+                            groups
+                        }
+                        for ((channel, groupedData) in outChannels.zip(groups)) {
+                            if (groupedData.isNotEmpty()) {
+                                channel.send(SinkMsg.Data(groupedData))
+                            }
                         }
                     }
                 }
