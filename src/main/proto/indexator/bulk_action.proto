@@ -11,29 +11,17 @@ message BulkAction {
     enum OpType {
         INDEX = 0;
         DELETE = 1;
-        UPDATE = 2;
-        CREATE = 3;
     }
     OpType op_type = 1;
     string index = 2;
     string type = 3;
     string id = 4;
     string routing = 5;
-    string parent = 6;
-    string version = 7;
-    string version_type = 8;
-    // Only valid for UPDATE action
-    int32 retry_on_conflict = 9;
-}
-
-message Script {
-    string lang = 1;
-    oneof script {
-        string source = 2;
-        string id = 3;
-        string file = 4;
-    }
-    google.protobuf.Struct params = 5;
+    // TODO: Do we need parent here?
+    // string parent = 6;
+    // TODO: Think we should not support versioning here
+    // string version = 7;
+    // string version_type = 8;
 }
 
 message DeleteMessage {

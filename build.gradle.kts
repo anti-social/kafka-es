@@ -13,12 +13,17 @@ plugins {
     `maven-publish`
     jacoco
     id("org.jetbrains.kotlin.jvm") version "1.4.21"
+    kotlin("plugin.serialization") version "1.4.21"
     id("com.google.protobuf") version "0.8.14"
     id("org.ajoberstar.grgit") version "4.1.0"
 }
 
 repositories {
-     mavenCentral()
+    mavenCentral()
+    jcenter()
+    maven {
+        url = uri("https://dl.bintray.com/evo/maven")
+    }
 }
 
 group = "dev.evo"
@@ -27,25 +32,33 @@ val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
         ?: "v0.0.0-unknown"
 version = gitDescribe.trimStart('v')
 
+val kotlinCoroutinesVersion = "1.4.2"
+val kotlinSerializationVersion = "1.0.1"
 val kafkaVersion = "2.7.0"
-val jestVersion = "6.3.1"
 val protobufVersion = "3.14.0"
 val junitJupiterVersion = "5.2.0"
 val assertjVersion = "3.8.0"
+val kotestVersion = "4.4.0.RC2"
+val esTransport = "0.0.8"
+val ktorVersion = "1.5.1"
 
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinCoroutinesVersion")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinSerializationVersion")
     implementation("org.apache.kafka:connect-api:$kafkaVersion")
-    implementation("org.apache.kafka:connect-json:$kafkaVersion")
     implementation("org.apache.kafka:connect-runtime:$kafkaVersion")
-    implementation("io.searchbox:jest:$jestVersion")
-    implementation("io.searchbox:jest-common:$jestVersion")
     implementation("com.google.protobuf:protobuf-java:$protobufVersion")
     implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
+
+    implementation("dev.evo:elasticart-elasticsearch-transport:$esTransport")
+    implementation("io.ktor:ktor-client-cio:$ktorVersion")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
     testImplementation("org.assertj:assertj-core:$assertjVersion")
+    testImplementation("io.kotest:kotest-runner-junit5:$kotestVersion")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:$kotlinCoroutinesVersion")
 }
 
 application {
@@ -62,11 +75,6 @@ protobuf {
 }
 
 tasks {
-    val run by getting(JavaExec::class) {
-        System.getProperty("exec.args")?.let {
-            args = it.trim().split("\\s+".toRegex())
-        }
-    }
     val test by getting(Test::class) {
         useJUnitPlatform()
     }
@@ -97,6 +105,11 @@ tasks.withType(JavaCompile::class.java) {
 tasks.withType(KotlinCompile::class.java) {
     kotlinOptions {
         jvmTarget = javaVersion
+        freeCompilerArgs = listOf(
+            "-Xopt-in=kotlin.time.ExperimentalTime",
+            "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
+            "-Xopt-in=io.ktor.util.KtorExperimentalAPI"
+        )
     }
 }
 
