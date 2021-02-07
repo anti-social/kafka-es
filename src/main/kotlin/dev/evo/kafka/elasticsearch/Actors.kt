@@ -112,7 +112,6 @@ class BulkActor<T>(
     private var buffer = ArrayList<T>(bulkSize)
     private var firstMessageMark: TimeMark? = null
     private val job = scope.launch {
-        val startMark = clock.markNow()
         while (true) {
             val timeoutMs = firstMessageMark.let { firstMessageMark ->
                 if (firstMessageMark != null) {
