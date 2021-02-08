@@ -39,8 +39,10 @@ val protobufVersion = "3.14.0"
 val junitJupiterVersion = "5.2.0"
 val assertjVersion = "3.8.0"
 val kotestVersion = "4.4.0.RC2"
-val esTransport = "0.0.8"
+val esTransportVersion = "0.0.8"
+val prometheusKtVersion = "0.1.0-rc-3"
 val ktorVersion = "1.5.1"
+val argparserVersion = "2.0.7"
 
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
@@ -51,8 +53,13 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java:$protobufVersion")
     implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
 
-    implementation("dev.evo:elasticart-elasticsearch-transport:$esTransport")
+    implementation("dev.evo:elasticart-elasticsearch-transport:$esTransportVersion")
+    implementation("dev.evo:prometheus-kt-ktor:$prometheusKtVersion")
     implementation("io.ktor:ktor-client-cio:$ktorVersion")
+    implementation("io.ktor:ktor-server-core:$ktorVersion")
+    implementation("io.ktor:ktor-server-netty:$ktorVersion")
+
+    implementation("com.xenomachina:kotlin-argparser:$argparserVersion")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
@@ -62,9 +69,9 @@ dependencies {
 }
 
 application {
-    mainClass.set("org.apache.kafka.connect.cli.ConnectStandalone")
+    mainClass.set("dev.evo.kafka.elasticsearch.MainKt")
     applicationDefaultJvmArgs = listOf(
-            "-Dlog4j.configuration=file:config/connect-log4j.properties"
+        "-Dlog4j.configuration=file:config/connect-log4j.properties"
     )
 }
 

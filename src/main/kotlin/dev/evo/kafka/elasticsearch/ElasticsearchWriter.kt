@@ -4,10 +4,10 @@ import dev.evo.elasticart.transport.ElasticsearchException
 import dev.evo.elasticart.transport.ElasticsearchTransport
 import dev.evo.elasticart.transport.Method
 
-import io.ktor.http.ContentType
-
 import java.io.IOException
 
+import kotlin.time.Duration
+import kotlin.time.measureTimedValue
 import kotlin.time.TimeSource
 
 import kotlinx.coroutines.CoroutineScope
@@ -42,12 +42,14 @@ import org.slf4j.LoggerFactory
  */
 class ElasticsearchWriter(
     scope: CoroutineScope,
+    private val connectorName: String,
     channel: ReceiveChannel<SinkMsg<BulkAction>>,
     private val esTransport: ElasticsearchTransport,
     private val requestTimeoutMs: Long,
     private val minRetryDelayMs: Long,
     private val maxRetryDelayMs: Long,
     delayBetweenRequestsMs: Long = 0,
+    private val metrics: KafkaEsMetrics? = null,
     clock: TimeSource = TimeSource.Monotonic,
 ) {
     private val logger = LoggerFactory.getLogger(ElasticsearchWriter::class.java)
@@ -76,7 +78,20 @@ class ElasticsearchWriter(
         )
     }
 
-    class FailedItem(
+    private enum class SendStatus {
+        SUCCESS, ERROR, TIMEOUT,
+    }
+    private sealed class SendResult {
+        class Success(
+            val time: Duration,
+            val successActionsCount: Long,
+            val retryActions: List<BulkAction>,
+        ) : SendResult()
+        object Error : SendResult()
+        object Timeout : SendResult()
+    }
+
+    private class FailedItem(
         val index: String?,
         val type: String?,
         val id: String?,
@@ -103,11 +118,32 @@ class ElasticsearchWriter(
         }
     }
 
+    private fun setLabels(labels: KafkaEsLabels) = labels.apply {
+        connectorName = this@ElasticsearchWriter.connectorName
+    }
+
     private suspend fun process(bulk: List<BulkAction>) {
         var retryDelayMs = minRetryDelayMs
         while (true) {
-            val failedActions = sendActions(bulk)
-            if (failedActions.isEmpty()) {
+            val retryActions = when (val sendResult = sendActions(bulk)) {
+                is SendResult.Success -> {
+                    metrics?.let { metrics ->
+                        metrics.bulksCount.inc(::setLabels)
+                        metrics.bulksTime.add(sendResult.time.toLongMilliseconds(), ::setLabels)
+                        metrics.bulkActionsCount.add(bulk.size.toLong(), ::setLabels)
+                    }
+                    sendResult.retryActions
+                }
+                SendResult.Error -> {
+                    metrics?.bulksErrorCount?.inc(::setLabels)
+                    bulk
+                }
+                SendResult.Timeout -> {
+                    metrics?.bulksTimeoutCount?.inc(::setLabels)
+                    bulk
+                }
+            }
+            if (retryActions.isEmpty()) {
                 break
             }
             delay(retryDelayMs)
@@ -115,18 +151,20 @@ class ElasticsearchWriter(
         }
     }
 
-    private suspend fun sendActions(bulk: List<BulkAction>): List<BulkAction> {
+    private suspend fun sendActions(bulk: List<BulkAction>): SendResult {
         try {
-            val response = withTimeout(requestTimeoutMs) {
+            val (response, time) = withTimeout(requestTimeoutMs) {
                 logger.debug("Sending ${bulk.size} action ")
-                esTransport.request(
-                    Method.POST,
-                    "/_bulk",
-                    parameters = null,
-                    contentType = "application/x-ndjson",
-                ) {
-                    for (action in bulk) {
-                        action.write(this)
+                measureTimedValue {
+                    esTransport.request(
+                        Method.POST,
+                        "/_bulk",
+                        parameters = null,
+                        contentType = "application/x-ndjson",
+                    ) {
+                        for (action in bulk) {
+                            action.write(this)
+                        }
                     }
                 }
             }
@@ -134,51 +172,59 @@ class ElasticsearchWriter(
             val hasErrors = requireNotNull(
                 bulkResult["errors"]?.jsonPrimitive?.boolean
             )
-            if (hasErrors) {
-                val itemsResult = requireNotNull(
-                    bulkResult["items"]?.jsonArray
-                )
-                val failedItems = mutableListOf<FailedItem>()
-                val retryItems = mutableListOf<FailedItem>()
-                val retryActions = mutableListOf<BulkAction>()
-                for ((item, action) in itemsResult.zip(bulk)) {
-                    val failedItem = FailedItem.fromJsonItem(item)
-                    if (
-                        failedItem.errorType != null &&
-                        NON_RETRIABLE_ES_ERRORS.contains(failedItem.errorType)
-                    ) {
-                        failedItems.add(failedItem)
-                    } else {
-                        retryItems.add(failedItem)
-                        retryActions.add(action)
-                    }
-                }
-
-                if (failedItems.isNotEmpty()) {
-                    throw IllegalStateException(formatFailedItems(
-                        "Some documents weren't indexed",
-                        failedItems,
-                    ))
-                }
-                if (retryItems.isNotEmpty()) {
-                    logger.error(formatFailedItems(
-                        "Some documents weren't indexed, will retry",
-                        retryItems
-                    ))
-                }
-                return retryActions
+            if (!hasErrors) {
+                return SendResult.Success(time, bulk.size.toLong(), emptyList())
             }
-            return emptyList()
+
+            val itemsResult = requireNotNull(
+                bulkResult["items"]?.jsonArray
+            )
+            val failedItems = mutableListOf<FailedItem>()
+            val retryItems = mutableListOf<FailedItem>()
+            val retryActions = mutableListOf<BulkAction>()
+            for ((item, action) in itemsResult.zip(bulk)) {
+                val failedItem = FailedItem.fromJsonItem(item)
+                if (
+                    failedItem.errorType != null &&
+                    NON_RETRIABLE_ES_ERRORS.contains(failedItem.errorType)
+                ) {
+                    failedItems.add(failedItem)
+                } else {
+                    retryItems.add(failedItem)
+                    retryActions.add(action)
+                }
+            }
+
+            if (failedItems.isNotEmpty()) {
+                throw IllegalStateException(formatFailedItems(
+                    "Some documents weren't indexed",
+                    failedItems,
+                ))
+            }
+            if (retryItems.isNotEmpty()) {
+                logger.error(formatFailedItems(
+                    "Some documents weren't indexed, will retry",
+                    retryItems
+                ))
+            }
+
+            return SendResult.Success(
+                time, (bulk.size - retryActions.size).toLong(), retryActions
+            )
         } catch (ex: ElasticsearchException) {
             logger.error("Error when sending bulk actions", ex)
-            return bulk
+            return SendResult.Error
         } catch (ex: IOException) {
             logger.error("Error when sending bulk actions", ex)
-            return bulk
+            return SendResult.Error
         } catch (ex: TimeoutCancellationException) {
             logger.error("Error when sending bulk actions", ex)
-            return bulk
+            return SendResult.Timeout
         }
+    }
+
+    private suspend fun updateMetrics() {
+        // TODO: also count failed actions
     }
 
     private fun formatFailedItems(
