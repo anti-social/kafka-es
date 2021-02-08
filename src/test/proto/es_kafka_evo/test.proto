@@ -5,80 +5,8 @@ package evo_kafka_es;
 option java_package = "dev.evo.kafka.elasticsearch";
 option java_outer_classname = "TestProto";
 
-import "indexator/bulk_action.proto";
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
-
-message TestMessage {
-    indexator.BulkAction action = 1;
-    TestDocument source = 2;
-}
-
 message TestDocument {
     int32 id = 1;
     string name = 2;
     int64 counter = 3;
-}
-
-message MissingActionMessage {
-    TestDocument source = 1;
-}
-
-message InvalidActionMessage {
-    string action = 1;
-    TestDocument source = 2;
-}
-
-message MissingSourceMessage {
-    indexator.BulkAction action = 1;
-}
-
-message InvalidSourceMessage {
-    indexator.BulkAction action = 1;
-    string source = 2;
-}
-
-message EnumMessage {
-    enum Status {
-        ACTIVE = 0;
-        DRAFT = 1;
-        DELETED = 2;
-    }
-    message Source {
-        Status status = 1;
-    }
-    indexator.BulkAction action = 1;
-    Source source = 2;
-}
-
-message RepeatedMessage {
-    message Source {
-        repeated int32 delivery_regions = 1;
-    }
-    indexator.BulkAction action = 1;
-    Source source = 2;
-}
-
-message MapMessage {
-    message Source {
-        map<string, string> my_map = 1;
-    }
-    indexator.BulkAction action = 1;
-    Source source = 2;
-}
-
-message DatetimeMessage {
-    message Source {
-        google.protobuf.Timestamp datetime = 1;
-    }
-    indexator.BulkAction action = 1;
-    Source source = 2;
-}
-
-message Int32ValueMessage {
-    message Source {
-        google.protobuf.Int32Value nullable_int = 1;
-    }
-    indexator.BulkAction action = 1;
-    Source source = 2;
 }
