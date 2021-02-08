@@ -123,11 +123,12 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             maxPendingBulks = bulkQueueSize,
             bulkWriterFactory = { channel ->
                 ElasticsearchWriter(
-                    this, channel, esTransport,
+                    this, name, channel, esTransport,
                     requestTimeoutMs = requestTimeoutMs,
                     delayBetweenRequestsMs = delayBetweenRequestsMs,
                     minRetryDelayMs = retryIntervalMs,
-                    maxRetryDelayMs = maxRetryIntervalMs
+                    maxRetryDelayMs = maxRetryIntervalMs,
+                    metrics = Metrics.kafkaEsMetrics,
                 ).job
             }
         )

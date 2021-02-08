@@ -51,6 +51,7 @@ class ElasticsearchWriterTests : StringSpec({
         val channel = Channel<SinkMsg<BulkAction>>()
         val writer = ElasticsearchWriter(
             this,
+            "<test>",
             channel,
             ElasticsearchMockTransport {
                 method shouldBe Method.POST
