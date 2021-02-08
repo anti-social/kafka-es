@@ -1,47 +1,66 @@
 package dev.evo.kafka.elasticsearch
 
-import java.util.Objects
+import dev.evo.elasticart.transport.ElasticsearchKtorTransport
+import dev.evo.elasticart.transport.ElasticsearchTransport
 
-import com.google.protobuf.MessageOrBuilder
+import dev.evo.kafka.castOrFail
 
-import io.searchbox.client.JestClient
-import io.searchbox.client.JestClientFactory
-import io.searchbox.client.config.HttpClientConfig
-import io.searchbox.params.Parameters
+import io.ktor.client.engine.cio.CIO
+import io.ktor.http.Url
+
+import java.util.concurrent.atomic.AtomicReference
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.errors.ConnectException
+import org.apache.kafka.connect.runtime.ConnectorConfig
 import org.apache.kafka.connect.runtime.WorkerConfig
 import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
 
-import dev.evo.kafka.Timeout
-import org.apache.kafka.connect.runtime.ConnectorConfig
+import kotlin.coroutines.CoroutineContext
 
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
 
-class ElasticsearchSinkTask() : SinkTask() {
-    private var testEsClient: JestClient? = null
+@kotlin.time.ExperimentalTime
+@kotlinx.coroutines.ExperimentalCoroutinesApi
+class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
+    lateinit var job: Job
+    override val coroutineContext: CoroutineContext
+        get() = Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
+            throwable.printStackTrace()
+            lastException.set(throwable)
+        }
+    private val lastException = AtomicReference<Throwable>()
+
+    private var esTestTransport: ElasticsearchTransport? = null
+    private lateinit var esTransport: ElasticsearchTransport
 
     private var name: String = "unknown"
     private var index: String? = null
     private var topicToIndexMap = emptyMap<String, String>()
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
     private var requestTimeoutMs = Config.REQUEST_TIMEOUT_DEFAULT
+    private var maxInFlightRequest = Config.MAX_IN_FLIGHT_REQUESTS_DEFAULT
+    private var delayBetweenRequestsMs = Config.DELAY_BEETWEEN_REQUESTS_DEFAULT
+    private var bulkSize = Config.BULK_SIZE_DEFAULT
+    private var bulkDelayMs = Config.BULK_DELAY_DEFAULT
+    private var bulkQueueSize = Config.QUEUE_SIZE_DEFAULT
+    private var retryIntervalMs = Config.RETRY_INTERVAL_DEFAULT
+    private var maxRetryIntervalMs = Config.MAX_RETRY_INTERVAL_DEFAULT
 
-    private var esClient: JestClient? = null
-    private var sink: Sink? = null
-    private var isPaused = false
-    private var processedRecords: Int = 0
-
-    private var protobufProcessor = ProtobufProcessor()
-    private val jsonProcessor = JsonProcessor()
-
-    private val requestTimeout = Timeout(requestTimeoutMs)
-    private val flushTimeout = Timeout(flushTimeoutMs)
+    private lateinit var sink: BulkSink<BulkAction>
+    private var processedRecords = 0L
+    private var lastFlushResult: BulkSink.FlushResult = BulkSink.FlushResult.Ok
+    private val isPaused
+        get() = !lastFlushResult.isFlushed
 
     companion object {
         private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
@@ -49,57 +68,41 @@ class ElasticsearchSinkTask() : SinkTask() {
         private val EMPTY_OFFSETS: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap()
     }
 
-    internal constructor(esClient: JestClient) : this() {
-        this.testEsClient = esClient
+    internal constructor(esTestTransport: ElasticsearchTransport) : this() {
+        this.esTestTransport = esTestTransport
     }
 
     override fun start(props: MutableMap<String, String>) {
         logger.debug("Starting ElasticsearchSinkTask")
+        job = Job()
+
         try {
             val config = Config(props)
-            this.name = config.getString(ConnectorConfig.NAME_CONFIG)
-            this.index = config.getString(Config.INDEX)
-            this.topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
+            name = config.getString(ConnectorConfig.NAME_CONFIG)
+            index = config.getString(Config.INDEX)
+            topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
             // 90% from the offset commit timeout
-            this.flushTimeoutMs = 90 * config.getLong(WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG) / 100
-            this.protobufProcessor = ProtobufProcessor(
-                    includeDefaultValues = config.getBoolean(
-                            Config.PROTOBUF_INCLUDE_DEFAULT_VALUES
-                    )
-            )
-            val esUrl = config.getList(Config.CONNECTION_URL)
-            val testEsClient = this.testEsClient
+            flushTimeoutMs = 90 * config.getLong(WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG) / 100
+            maxInFlightRequest = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS)
+            delayBetweenRequestsMs = config.getLong(Config.DELAY_BEETWEEN_REQUESTS)
+            bulkSize = config.getInt(Config.BULK_SIZE)
+            bulkDelayMs = config.getLong(Config.BULK_DELAY)
+            bulkQueueSize = config.getInt(Config.QUEUE_SIZE)
             requestTimeoutMs = config.getLong(Config.REQUEST_TIMEOUT)
-            val esClient = if (testEsClient != null) {
-                testEsClient
+            retryIntervalMs = config.getLong(Config.RETRY_INTERVAL)
+            maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
+
+            val esTestTransport = this.esTestTransport
+            esTransport = if (esTestTransport != null) {
+                esTestTransport
             } else {
+                val esUrl = config.getList(Config.CONNECTION_URL)
                 logger.info("[$name] Initializing Elasticsearch client for cluster: $esUrl")
-                JestClientFactory().apply {
-                    setHttpClientConfig(
-                            HttpClientConfig.Builder(esUrl)
-                                    .multiThreaded(true)
-                                    .connTimeout(requestTimeoutMs.toInt())
-                                    .readTimeout(requestTimeoutMs.toInt())
-                                    .requestCompressionEnabled(
-                                            config.getBoolean(Config.COMPRESSION_ENABLED)
-                                    )
-                                    .build()
-                    )
+                // TODO: Mutliple endpoint urls
+                ElasticsearchKtorTransport(esUrl[0], CIO.create {}) {
+                    gzipRequests = config.getBoolean(Config.COMPRESSION_ENABLED)
                 }
-                        .`object`
             }
-            this.esClient = esClient
-            this.sink = Sink(
-                    name,
-                    esUrl,
-                    esClient,
-                    bulkSize = config.getInt(Config.BULK_SIZE),
-                    queueSize = config.getInt(Config.QUEUE_SIZE),
-                    maxInFlightRequests = config.getInt(Config.MAX_IN_FLIGHT_REQUESTS),
-                    delayBeetweenRequests = config.getLong(Config.DELAY_BEETWEEN_REQUESTS),
-                    retryIntervalMs = config.getLong(Config.RETRY_INTERVAL),
-                    maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
-            )
         } catch (e: ConfigException) {
             throw ConnectException(
                     "Couldn't start ${this::class.java} due to configuration error", e
@@ -107,11 +110,39 @@ class ElasticsearchSinkTask() : SinkTask() {
         }
     }
 
+    override fun open(partitions: MutableCollection<TopicPartition>) {
+        sink = BulkSink(
+            this,
+            concurrency = maxInFlightRequest,
+            router = { action ->
+                val routingKey = action.meta.routing ?: action.meta.id
+                routingKey.hashCode()
+            },
+            bulkSize = bulkSize,
+            bulkDelayMs = bulkDelayMs,
+            maxPendingBulks = bulkQueueSize,
+            bulkWriterFactory = { channel ->
+                ElasticsearchWriter(
+                    this, channel, esTransport,
+                    requestTimeoutMs = requestTimeoutMs,
+                    delayBetweenRequestsMs = delayBetweenRequestsMs,
+                    minRetryDelayMs = retryIntervalMs,
+                    maxRetryDelayMs = maxRetryIntervalMs
+                ).job
+            }
+        )
+    }
+
     override fun stop() {
-        logger.info("[$name] Stopping ElasticsearchSinkTask")
-        sink?.close()
-        esClient?.close()
-        isPaused = false
+        job.cancel()
+    }
+
+    override fun close(partitions: MutableCollection<TopicPartition>) {
+        // close is called before partition rebalancing so we need to clean up all
+        // messages which were sent earlier
+        logger.info("[$name] Closing ElasticsearchSinkTask")
+        sink.close()
+        lastFlushResult = BulkSink.FlushResult.Ok
         processedRecords = 0
     }
 
@@ -120,94 +151,50 @@ class ElasticsearchSinkTask() : SinkTask() {
     }
 
     override fun put(records: MutableCollection<SinkRecord>) {
+        val exc = lastException.get()
+        if (exc != null) {
+            throw exc
+        }
+
         if (records.isNotEmpty()) {
             logger.debug("[$name] Received ${records.size} records")
         }
-        val sink = getSink()
-        if (isPaused) {
-            if (sink.waitingElastic()) {
-                return
-            } else {
-                resume()
-            }
+
+        val actions = preprocessRecords(records)
+        processedRecords += actions.size
+        if (actions.isEmpty()) {
+            return
         }
 
-        records.forEach {
-            processRecord(sink, it)
+        val isSent = runBlocking {
+            sink.send(actions, requestTimeoutMs)
+        }
+        if (!isSent) {
+            pause()
         }
     }
 
-    private fun getSink(): Sink {
-        return sink ?: throw ConnectException("Sink is not initialized")
-    }
-
-    private fun processRecord(sink: Sink, record: SinkRecord) {
-        val index = topicToIndexMap[record.topic()] ?: index
-        val value = record.value()
-        if (value is List<*>) {
-            value.forEach {
-                processValue(sink, it, index, record)
-            }
-        } else {
-            processValue(sink, value, index, record)
-        }
-    }
-
-    private fun processValue(sink: Sink, value: Any?, index: String?, record: SinkRecord) {
-        val bulkAction = when (value) {
-            is Map<*,*> -> {
-                jsonProcessor.process(value, index)
-            }
-            is MessageOrBuilder -> {
-                protobufProcessor.process(value, index)
-            }
-            else -> {
-                throw IllegalArgumentException(
-                        "Expected one of [${Map::class.java}, ${MessageOrBuilder::class.java}] " +
-                                "but was: ${value?.javaClass}"
-                )
-            }
-        }
-        val routing = bulkAction.getParameter(Parameters.ROUTING).toList()
-        // TODO(Possibly we always should hash only topic, partition and key)
-        val hash = when {
-            routing.isNotEmpty() -> {
-                Objects.hash(*routing.toTypedArray())
-            }
-            bulkAction.id != null -> {
-                bulkAction.id.hashCode()
-            }
-            record.key() != null -> {
-                record.key().hashCode()
-            }
-            else -> {
-                Objects.hash(record.topic(), record.kafkaPartition())
-            }
-        }
-        try {
-            requestTimeout.reset()
-            if (!sink.put(bulkAction, hash, isPaused, requestTimeout)) {
-                pause()
-            }
-            processedRecords += 1
-        } catch (e: IllegalArgumentException) {
-            logger.error("[$name] Malformed message", e)
+    private fun preprocessRecords(records: Collection<SinkRecord>): List<BulkAction> {
+        return records.map { record ->
+            castOrFail<BulkAction>(record.value())
+                .also { action ->
+                    action.meta.index = requireNotNull(topicToIndexMap[record.topic()] ?: index)
+                }
         }
     }
 
     override fun preCommit(
-            currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
-    ): MutableMap<TopicPartition, OffsetAndMetadata>
-    {
-        val sink = getSink()
-        if (isPaused) {
+        currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
+    ): MutableMap<TopicPartition, OffsetAndMetadata> {
+        val flushResult = runBlocking {
+            sink.flush(flushTimeoutMs, lastFlushResult)
+        }
+        if (!flushResult.isFlushed) {
+            pause(flushResult)
             return EMPTY_OFFSETS
         }
-        flushTimeout.reset()
-        if (!sink.flush(flushTimeout)) {
-            pause()
-            return EMPTY_OFFSETS
-        }
+        resume()
+
         if (processedRecords > 0) {
             logger.info("[$name] Committing $processedRecords processed records")
         }
@@ -215,18 +202,23 @@ class ElasticsearchSinkTask() : SinkTask() {
         return super.preCommit(currentOffsets)
     }
 
-    override fun flush(currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?) {
-    }
+    override fun flush(currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?) {}
 
-    private fun pause() {
+    private fun pause(flushResult: BulkSink.FlushResult = BulkSink.FlushResult.SendTimeout) {
+        if (isPaused) {
+            return
+        }
+        lastFlushResult = flushResult
         context.pause(*context.assignment().toTypedArray())
-        isPaused = true
         logger.info("[$name] Paused consuming new records")
     }
 
     private fun resume() {
+        if (!isPaused) {
+            return
+        }
+        lastFlushResult = BulkSink.FlushResult.Ok
         context.resume(*context.assignment().toTypedArray())
-        isPaused = false
         logger.info("[$name] Resumed consuming new records")
     }
 }

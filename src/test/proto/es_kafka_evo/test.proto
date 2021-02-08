@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package evo_kafka_es;
 
-option java_package = "dev.evo.kafka";
+option java_package = "dev.evo.kafka.elasticsearch";
 option java_outer_classname = "TestProto";
 
 import "indexator/bulk_action.proto";
@@ -18,19 +18,6 @@ message TestDocument {
     int32 id = 1;
     string name = 2;
     int64 counter = 3;
-}
-
-message UpdateMessage {
-    message Source {
-        oneof doc_or_script {
-            TestDocument doc = 1;
-            indexator.Script script = 3;
-        }
-        bool doc_as_upsert = 2;
-        TestDocument upsert = 4;
-    }
-    indexator.BulkAction action = 1;
-    Source source = 2;
 }
 
 message MissingActionMessage {
