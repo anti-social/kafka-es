@@ -97,9 +97,10 @@ class BulkActorTests : StringSpec({
                 advanceTimeBy(8)
                 bulkChannel.poll() shouldBe null
 
+                channel.send(SinkMsg.Data(listOf(2)))
+
                 clock += 1.milliseconds
                 advanceTimeBy(1)
-                channel.send(SinkMsg.Data(listOf(2)))
                 bulkChannel.poll() shouldBe null
 
                 clock += 1.milliseconds

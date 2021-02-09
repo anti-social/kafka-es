@@ -114,20 +114,17 @@ class BulkActor<T>(
     private val job = scope.launch {
         while (true) {
             val timeoutMs = firstMessageMark.let { firstMessageMark ->
-                if (firstMessageMark != null) {
-                    bulkDelayMs - firstMessageMark.elapsedNow().toLongMilliseconds()
+                if (firstMessageMark == null || buffer.isEmpty()) {
+                    // Wait for the first message endlessly
+                    Long.MAX_VALUE
                 } else {
-                    bulkDelayMs
+                    bulkDelayMs - firstMessageMark.elapsedNow().toLongMilliseconds()
                 }
             }
 
             try {
                 select<Unit> {
                     channel.onReceive { msg ->
-                        val receivedAt = clock.markNow()
-                        if (firstMessageMark == null && buffer.isEmpty()) {
-                            firstMessageMark = receivedAt
-                        }
                         when (msg) {
                             is SinkMsg.Data -> {
                                 for (v in msg.data) {
@@ -136,8 +133,8 @@ class BulkActor<T>(
                                         flushBuffer()
                                     }
                                 }
-                                if (buffer.isEmpty()) {
-                                    firstMessageMark = null
+                                if (firstMessageMark == null && buffer.isNotEmpty()) {
+                                    firstMessageMark = clock.markNow()
                                 }
                             }
                             is SinkMsg.Flush -> {
