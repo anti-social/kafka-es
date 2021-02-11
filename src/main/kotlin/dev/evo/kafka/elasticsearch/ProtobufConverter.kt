@@ -88,40 +88,43 @@ class ProtobufConverter : Converter {
         val index = actionMeta.index.ifEmpty { null }
         val type = actionMeta.type.ifEmpty { null }
         val routing = actionMeta.routing.ifEmpty { null }
-        val bulkMeta = when (actionMeta.opType) {
+        val parent = actionMeta.parent.ifEmpty { null }
+        val bulkAction = when (actionMeta.opType) {
             BulkActionProto.BulkAction.OpType.INDEX -> {
-                BulkMeta.Index(
+                BulkAction.Index(
                     index = index,
                     id = actionMeta.id.ifEmpty { null },
                     type = type,
                     routing = routing,
+                    parent = parent,
+                    source = parseSource(value)
                 )
             }
             BulkActionProto.BulkAction.OpType.DELETE -> {
-                BulkMeta.Delete(
+                BulkAction.Delete(
                     index = index,
                     id = actionMeta.id,
                     type = type,
                     routing = routing,
+                    parent = parent,
                 )
             }
             BulkActionProto.BulkAction.OpType.UNRECOGNIZED, null -> {
                 throw IllegalArgumentException("Unrecognized operation type for bulk action")
             }
         }
-        val source = if (actionMeta.opType == BulkActionProto.BulkAction.OpType.DELETE) {
-            null
-        } else {
-            parseSource(requireNotNull(value))
-        }
-        return SchemaAndValue(null, BulkAction(bulkMeta, source))
+        return SchemaAndValue(null, bulkAction)
     }
 
     override fun toConnectData(topic: String, value: ByteArray): SchemaAndValue {
         throw NotImplementedError("Headers are required")
     }
 
-    private fun parseSource(value: ByteArray): ProtobufSource {
+    private fun parseSource(value: ByteArray?): ProtobufSource {
+        requireNotNull(value) {
+            "Message value must be present"
+        }
+
         try {
             return ProtobufSource(parser.parseFrom(value) as Message)
         } catch (e: InvalidProtocolBufferException) {

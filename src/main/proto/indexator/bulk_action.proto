@@ -18,7 +18,7 @@ message BulkAction {
     string id = 4;
     string routing = 5;
     // TODO: Do we need parent here?
-    // string parent = 6;
+    string parent = 6;
     // TODO: Think we should not support versioning here
     // string version = 7;
     // string version_type = 8;

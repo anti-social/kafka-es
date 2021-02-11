@@ -53,8 +53,12 @@ class JsonConverter : Converter {
                 BulkMetaSerializer,
                 actionHeader.value().toString(Charsets.UTF_8)
             )
-            val source = value?.let(::parseSource)
-            BulkAction(meta, source)
+            when (meta) {
+                is BulkMeta.Index -> BulkAction.Index(meta, parseSource(value))
+                is BulkMeta.Delete -> BulkAction.Delete(meta)
+                is BulkMeta.Update -> BulkAction.Update(meta, parseSource(value))
+                is BulkMeta.Create -> BulkAction.Create(meta, parseSource(value))
+            }
         } catch (e: Throwable) {
             throw DataException("Unable to deserialize Elasticsearch action", e)
         }
@@ -65,7 +69,10 @@ class JsonConverter : Converter {
         throw NotImplementedError("Headers are required")
     }
 
-    private fun parseSource(value: ByteArray): JsonSource {
+    private fun parseSource(value: ByteArray?): JsonSource {
+        requireNotNull(value) {
+            "Message value must be present"
+        }
         return JsonSource(json.parseToJsonElement(value.toString(Charsets.UTF_8)))
     }
 }

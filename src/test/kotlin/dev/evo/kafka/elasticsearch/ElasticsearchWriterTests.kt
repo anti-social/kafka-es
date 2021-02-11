@@ -72,13 +72,11 @@ class ElasticsearchWriterTests : StringSpec({
         try {
             channel.send(SinkMsg.Data(
                 listOf(
-                    BulkAction(
-                        BulkMeta.Index(
-                            id = "1",
-                            type = "_doc",
-                            index = "test",
-                        ),
-                        JsonSource(
+                    BulkAction.Index(
+                        id = "1",
+                        type = "_doc",
+                        index = "test",
+                        source = JsonSource(
                             buildJsonObject {
                                 put("name", "Indexed again")
                                 put("keyword", JsonNull)
@@ -121,13 +119,11 @@ class ElasticsearchWriterTests : StringSpec({
         try {
             channel.send(SinkMsg.Data(
                 listOf(
-                    BulkAction(
-                        BulkMeta.Index(
-                            id = "1",
-                            type = "_doc",
-                            index = "test",
-                        ),
-                        ProtobufSource(
+                    BulkAction.Index(
+                        id = "1",
+                        type = "_doc",
+                        index = "test",
+                        source = ProtobufSource(
                             TestProto.TestDocument.newBuilder().apply {
                                 name = "Test protobuf"
                             }

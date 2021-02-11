@@ -1,6 +1,6 @@
 package dev.evo.kafka.elasticsearch
 
-import com.google.protobuf.Message
+import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 
 import kotlinx.serialization.encodeToString
@@ -21,32 +21,90 @@ import kotlinx.serialization.json.JsonElement
  * Represents Elasticsearch's bulk action:
  * https://www.elastic.co/guide/en/elasticsearch/reference/7.10/docs-bulk.html
  *
- * @param meta a meta data of a bulk action
- * @param source an optional source
  */
-class BulkAction(
-    val meta: BulkMeta,
-    val source: BulkSource?,
-) {
-    init {
-        if (
-            source == null && (
-                meta is BulkMeta.Index ||
-                    meta is BulkMeta.Update ||
-                    meta is BulkMeta.Create
-                )
-        ) {
-            throw IllegalArgumentException(
-                "Source is required for ${meta::class.simpleName?.toLowerCase()} action"
-            )
-        }
+sealed class BulkAction {
+    /**
+     * A meta data of the bulk action
+     */
+    abstract val meta: BulkMeta
 
+    abstract class BulkActionWithSource : BulkAction() {
+        /**
+         * A source of the bulk action
+         */
+        abstract val source: BulkSource
+    }
+
+    data class Index (
+        override val meta: BulkMeta.Index,
+        override val source: BulkSource,
+    ) : BulkActionWithSource() {
+        constructor(
+            id: String? = null,
+            type: String? = null,
+            index: String? = null,
+            routing: String? = null,
+            parent: String? = null,
+            source: BulkSource,
+        ) : this(
+            BulkMeta.Index(id, type, index, routing, parent),
+            source,
+        )
+    }
+
+    data class Delete(
+        override val meta: BulkMeta.Delete,
+    ) : BulkAction() {
+        constructor(
+            id: String,
+            type: String? = null,
+            index: String? = null,
+            routing: String? = null,
+            parent: String? = null,
+        ) : this(
+            BulkMeta.Delete(id, type, index, routing, parent)
+        )
+    }
+
+    data class Update (
+        override val meta: BulkMeta.Update,
+        override val source: BulkSource,
+    ) : BulkActionWithSource() {
+        constructor(
+            id: String,
+            type: String? = null,
+            index: String? = null,
+            routing: String? = null,
+            parent: String? = null,
+            retryOnConflict: Int? = null,
+            source: BulkSource,
+        ) : this(
+            BulkMeta.Update(id, type, index, routing, parent, retryOnConflict),
+            source,
+        )
+    }
+
+    data class Create (
+        override val meta: BulkMeta.Create,
+        override val source: BulkSource,
+    ) : BulkActionWithSource() {
+        constructor(
+            id: String? = null,
+            type: String? = null,
+            index: String? = null,
+            routing: String? = null,
+            parent: String? = null,
+            source: BulkSource,
+        ) : this(
+            BulkMeta.Create(id, type, index, routing, parent),
+            source,
+        )
     }
 
     fun write(writer: Appendable) {
         writer.append(Json.encodeToString(BulkMetaSerializer, meta))
         writer.append("\n")
-        if (source != null) {
+        if (this is BulkActionWithSource) {
             source.write(writer)
             writer.append("\n")
         }
@@ -56,9 +114,9 @@ class BulkAction(
 /**
  * Contains a meta data of a bulk action.
  *
- * @param index a name of an index; it will be overridden by the sink connector
  * @param id a unique document identifier, can be `null` to automatically generate id
  * @param type a document type
+ * @param index a name of an index; it will be overridden by the sink connector
  * @param routing a routing key specifies a shard for a document
  */
 sealed class BulkMeta {
@@ -66,6 +124,7 @@ sealed class BulkMeta {
     abstract val type: String?
     abstract var index: String?
     abstract val routing: String?
+    abstract val parent: String?
 
     @Serializable
     data class Index(
@@ -76,6 +135,7 @@ sealed class BulkMeta {
         @SerialName("_index")
         override var index: String? = null,
         override val routing: String? = null,
+        override val parent: String? = null,
     ) : BulkMeta()
 
     @Serializable
@@ -87,6 +147,7 @@ sealed class BulkMeta {
         @SerialName("_index")
         override var index: String? = null,
         override val routing: String? = null,
+        override val parent: String? = null,
     ) : BulkMeta()
 
     @Serializable
@@ -98,6 +159,7 @@ sealed class BulkMeta {
         @SerialName("_index")
         override var index: String? = null,
         override val routing: String? = null,
+        override val parent: String? = null,
         @SerialName("retry_on_conflict")
         val retryOnConflict: Int? = null,
     ) : BulkMeta()
@@ -111,6 +173,7 @@ sealed class BulkMeta {
         @SerialName("_index")
         override var index: String? = null,
         override val routing: String? = null,
+        override val parent: String? = null,
     ) : BulkMeta()
 }
 
@@ -174,7 +237,7 @@ interface BulkSource {
 /**
  * Represents JSON source.
  */
-data class JsonSource(private val source: JsonElement) : BulkSource {
+data class JsonSource(val source: JsonElement) : BulkSource {
     private val json = Json.Default
 
     override fun write(writer: Appendable) {
@@ -189,8 +252,8 @@ data class JsonSource(private val source: JsonElement) : BulkSource {
  * @param includeDefaultValues also serializes default field values
  */
 data class ProtobufSource(
-    private val source: Message,
-    private val includeDefaultValues: Boolean = true,
+    val source: MessageOrBuilder,
+    val includeDefaultValues: Boolean = true,
 ) : BulkSource {
     private val jsonPrinter = JsonFormat.printer()
         .omittingInsignificantWhitespace()

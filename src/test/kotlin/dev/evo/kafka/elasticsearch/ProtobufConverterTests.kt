@@ -77,12 +77,11 @@ class ProtobufConverterTests : StringSpec({
         val connectData =  converter.toConnectData("<test>", headers, testMsg.toByteArray())
         connectData.schema() shouldBe null
         val action = connectData.value() as BulkAction
-        action.meta shouldBe BulkMeta.Index(
-            index = null,
+        action shouldBe BulkAction.Index(
             id = "123",
             routing = "456",
+            source = ProtobufSource(testMsg)
         )
-        action.source shouldBe ProtobufSource(testMsg)
     }
 
     "deserialize invalid data" {
@@ -102,12 +101,10 @@ class ProtobufConverterTests : StringSpec({
         val connectData =  converter.toConnectData("<test>", headers, null)
         connectData.schema() shouldBe null
         val action = connectData.value() as BulkAction
-        action.meta shouldBe BulkMeta.Delete(
-            index = null,
+        action shouldBe BulkAction.Delete(
             id = "123",
             routing = "456",
         )
-        action.source shouldBe null
     }
 
     "serialize message" {

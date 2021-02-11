@@ -44,7 +44,7 @@ class ElasticsearchSinkTaskTests : StringSpec({
                     newRecord(
                         TOPIC, 0, 0L,
                         null,
-                        BulkAction(BulkMeta.Delete("1"), null),
+                        BulkAction.Delete(BulkMeta.Delete("1")),
                     )
                 ))
                 val commitBall = mapOf(TopicPartition(TOPIC, 0) to OffsetAndMetadata(1L))

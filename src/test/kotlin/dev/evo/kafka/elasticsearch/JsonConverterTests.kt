@@ -31,23 +31,33 @@ class JsonConverterTests : StringSpec({
 
     "deserialize index action" {
         val headers = RecordHeaders().apply {
-            add("action", """{"index": {"_id": "123", "_type": "_doc", "routing": "456"}}""".toByteArray())
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
         }
-        val connectData = converter.toConnectData("<test>", headers, """{"name": "Test"}""".toByteArray())
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"name": "Test"}""".toByteArray()
+        )
         connectData.schema() shouldBe null
         val action = connectData.value() as BulkAction
-        action.meta shouldBe BulkMeta.Index(
-            index = null,
+        action shouldBe BulkAction.Index(
             id = "123",
             type = "_doc",
+            index = "test",
             routing = "456",
+            source = JsonSource(buildJsonObject {
+                put("name", "Test")
+            })
         )
-        action.source shouldBe JsonSource(buildJsonObject { put("name", "Test") })
     }
 
     "deserialize index action without source" {
         val headers = RecordHeaders().apply {
-            add("action", """{"index": {"_id": "123", "_type": "_doc", "routing": "456"}}""".toByteArray())
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc"}}""".toByteArray()
+            )
         }
         shouldThrow<DataException> {
             converter.toConnectData("<test>", headers, null)
@@ -56,38 +66,52 @@ class JsonConverterTests : StringSpec({
 
     "deserialize delete action" {
         val headers = RecordHeaders().apply {
-            add("action", """{"delete": {"_id": "123", "_type": "_doc", "routing": "456"}}""".toByteArray())
+            add(
+                "action",
+                """{"delete": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
         }
         val connectData = converter.toConnectData("<test>", headers, null)
         connectData.schema() shouldBe null
         val action = connectData.value() as BulkAction
-        action.meta shouldBe BulkMeta.Delete(
-            index = null,
+        action shouldBe BulkAction.Delete(
             id = "123",
             type = "_doc",
+            index = "test",
             routing = "456",
         )
-        action.source shouldBe null
     }
 
     "deserialize update action" {
         val headers = RecordHeaders().apply {
-            add("action", """{"update": {"_id": "123", "_type": "_doc", "routing": "456", "retry_on_conflict": 3}}""".toByteArray())
+            add(
+                "action",
+                """
+                    {
+                        "update": {
+                            "_id": "123", "_type": "_doc", "_index": "test", 
+                            "routing": "456", "retry_on_conflict": 3
+                        }
+                    }
+                """.trimIndent().toByteArray()
+            )
         }
-        val connectData = converter.toConnectData("<test>", headers, """{"doc": {"name": "Test"}}""".toByteArray())
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"doc": {"name": "Test"}}""".toByteArray()
+        )
         connectData.schema() shouldBe null
         val action = connectData.value() as BulkAction
-        action.meta shouldBe BulkMeta.Update(
-            index = null,
+        action shouldBe BulkAction.Update(
             id = "123",
             type = "_doc",
+            index = "test",
             routing = "456",
             retryOnConflict = 3,
+            source = JsonSource(buildJsonObject {
+                putJsonObject("doc") {
+                    put("name", "Test")
+                }
+            })
         )
-        action.source shouldBe JsonSource(buildJsonObject {
-            putJsonObject("doc") {
-                put("name", "Test")
-            }
-        })
     }
 })
