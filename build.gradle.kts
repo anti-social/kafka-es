@@ -113,9 +113,9 @@ tasks.withType(KotlinCompile::class.java) {
     kotlinOptions {
         jvmTarget = javaVersion
         freeCompilerArgs = listOf(
+            "-Xopt-in=kotlin.ExperimentalStdlibApi",
             "-Xopt-in=kotlin.time.ExperimentalTime",
-            "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
-            "-Xopt-in=io.ktor.util.KtorExperimentalAPI"
+            "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
         )
     }
 }

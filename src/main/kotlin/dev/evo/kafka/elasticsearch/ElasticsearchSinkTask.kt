@@ -176,12 +176,33 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     private fun preprocessRecords(records: Collection<SinkRecord>): List<BulkAction> {
-        return records.map { record ->
-            castOrFail<BulkAction>(record.value())
-                .also { action ->
-                    action.meta.index = requireNotNull(topicToIndexMap[record.topic()] ?: index)
+        return buildList {
+            records.forEach { record ->
+                when (val value = record.value()) {
+                    is BulkAction -> {
+                        add(maybeUpdateActionIndex(value, record.topic()))
+                    }
+                    is List<*> -> {
+                        val topic = record.topic()
+                        for (action in value) {
+                            add(maybeUpdateActionIndex(castOrFail(action), topic))
+                        }
+                    }
+                    else -> error("Unsupported record value type: ${value::class}")
                 }
+            }
         }
+    }
+
+    private fun maybeUpdateActionIndex(action: BulkAction, topic: String): BulkAction {
+        // Index could be set by a transformation
+        if (action.meta.index.isNullOrEmpty()) {
+            val indexName = topicToIndexMap.getOrDefault(topic, index)
+            action.meta.index = requireNotNull(indexName) {
+                "Cannot find out an index for an action"
+            }
+        }
+        return action
     }
 
     override fun preCommit(

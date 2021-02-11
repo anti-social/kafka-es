@@ -5,6 +5,9 @@ import io.kotest.matchers.shouldBe
 
 import kotlinx.coroutines.test.runBlockingTest
 
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.record.TimestampType
@@ -44,7 +47,44 @@ class ElasticsearchSinkTaskTests : StringSpec({
                     newRecord(
                         TOPIC, 0, 0L,
                         null,
-                        BulkAction.Delete(BulkMeta.Delete("1")),
+                        BulkAction.Delete("1"),
+                    )
+                ))
+                val commitBall = mapOf(TopicPartition(TOPIC, 0) to OffsetAndMetadata(1L))
+                preCommit(commitBall) shouldBe commitBall
+            }
+        }
+    }
+
+    "multiple actions in single record" {
+        runBlockingTest {
+            val esTransport = ElasticsearchMockTransport {
+                body shouldBe """
+                    |{"index":{"_id":"1","_index":"test_0"}}
+                    |{"name":"Fan out me!"}
+                    |{"index":{"_id":"1","_index":"test_1"}}
+                    |{"name":"Fan out me!"}
+                    |
+                """.trimMargin()
+            }
+            ElasticsearchSinkTask(esTransport).startWith(
+                mutableMapOf(
+                    "name" to "test-connector",
+                    "connection.url" to "http://example.com:9200",
+                    "topic" to TOPIC,
+                )
+            ) {
+                val source = JsonSource(buildJsonObject {
+                    put("name", "Fan out me!")
+                })
+                put(listOf(
+                    newRecord(
+                        TOPIC, 0, 0L,
+                        null,
+                        listOf(
+                            BulkAction.Index("1", index = "test_0", source = source),
+                            BulkAction.Index("1", index = "test_1", source = source),
+                        )
                     )
                 ))
                 val commitBall = mapOf(TopicPartition(TOPIC, 0) to OffsetAndMetadata(1L))
