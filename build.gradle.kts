@@ -184,10 +184,28 @@ publishing {
 
             name = "bintray"
             url = uri("https://api.bintray.com/maven/$bintrayUsername/$bintrayRepoName/$bintrayPackageName/;publish=$bintrayPublish")
-
             credentials {
                 username = bintrayUsername
                 password = bintrayApiKey
+            }
+        }
+
+        maven {
+            val gitlabRepoUrl = findProperty("gitlabRepoUrl")?.toString()
+                ?: System.getenv("GITLAB_REPO_URL")
+            val gitlabToken = project.properties["gitlabToken"]?.toString()
+                ?: System.getenv("GITLAB_TOKEN")
+
+            name = "gitlab"
+            if (gitlabRepoUrl != null) {
+                url = uri(gitlabRepoUrl)
+                credentials(HttpHeaderCredentials::class) {
+                    name = "Job-Token"
+                    value = gitlabToken
+                }
+                authentication {
+                    create<HttpHeaderAuthentication>("header")
+                }
             }
         }
     }

@@ -1,0 +1,23 @@
+.image:
+  image: "openjdk:13-buster"
+
+stages:
+- build
+- publish
+
+build:
+  extends: .image
+  stage: build
+  script:
+  - ./gradlew assemble --info --stacktrace --no-daemon
+
+publish:
+  extends: .image
+  stage: publish
+  only:
+  - /^v\d+\.\d+\.\d+(\-(alpha|beta|rc)\-\d+)?$/
+  script:
+  - |
+    export GITLAB_REPO_URL=$CI_API_V4_URL/api/v4/projects/${CI_PROJECT_ID}/packages/maven
+    export GITLAB_TOKEN=$CI_JOB_TOKEN
+    ./gradlew publishAllPublicationsToGitlabRepository --info --stacktrace --no-daemon
