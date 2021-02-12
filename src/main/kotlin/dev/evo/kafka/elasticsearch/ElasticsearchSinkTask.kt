@@ -6,7 +6,6 @@ import dev.evo.elasticart.transport.ElasticsearchTransport
 import dev.evo.kafka.castOrFail
 
 import io.ktor.client.engine.cio.CIO
-import io.ktor.http.Url
 
 import java.util.concurrent.atomic.AtomicReference
 
@@ -56,9 +55,9 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private var retryIntervalMs = Config.RETRY_INTERVAL_DEFAULT
     private var maxRetryIntervalMs = Config.MAX_RETRY_INTERVAL_DEFAULT
 
-    private lateinit var sink: BulkSink<BulkAction>
+    private lateinit var sink: ElasticsearchSink<BulkAction>
     private var processedRecords = 0L
-    private var lastFlushResult: BulkSink.FlushResult = BulkSink.FlushResult.Ok
+    private var lastFlushResult: ElasticsearchSink.FlushResult = ElasticsearchSink.FlushResult.Ok
     private val isPaused
         get() = !lastFlushResult.isFlushed
 
@@ -111,7 +110,10 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun open(partitions: MutableCollection<TopicPartition>) {
-        sink = BulkSink(
+        val esBulkSender = ElasticsearchBulkSender(
+            esTransport, requestTimeoutMs
+        )
+        sink = ElasticsearchSink(
             this,
             concurrency = maxInFlightRequest,
             router = { action ->
@@ -122,9 +124,8 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             bulkDelayMs = bulkDelayMs,
             maxPendingBulks = bulkQueueSize,
             bulkWriterFactory = { channel ->
-                ElasticsearchWriter(
-                    this, name, channel, esTransport,
-                    requestTimeoutMs = requestTimeoutMs,
+                BulkSinkActor(
+                    this, name, channel, esBulkSender::sendActions,
                     delayBetweenRequestsMs = delayBetweenRequestsMs,
                     minRetryDelayMs = retryIntervalMs,
                     maxRetryDelayMs = maxRetryIntervalMs,
@@ -143,7 +144,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         // messages which were sent earlier
         logger.info("[$name] Closing ElasticsearchSinkTask")
         sink.close()
-        lastFlushResult = BulkSink.FlushResult.Ok
+        lastFlushResult = ElasticsearchSink.FlushResult.Ok
         processedRecords = 0
     }
 
@@ -226,7 +227,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
 
     override fun flush(currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?) {}
 
-    private fun pause(flushResult: BulkSink.FlushResult = BulkSink.FlushResult.SendTimeout) {
+    private fun pause(flushResult: ElasticsearchSink.FlushResult = ElasticsearchSink.FlushResult.SendTimeout) {
         if (isPaused) {
             return
         }
@@ -239,7 +240,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         if (!isPaused) {
             return
         }
-        lastFlushResult = BulkSink.FlushResult.Ok
+        lastFlushResult = ElasticsearchSink.FlushResult.Ok
         context.resume(*context.assignment().toTypedArray())
         logger.info("[$name] Resumed consuming new records")
     }

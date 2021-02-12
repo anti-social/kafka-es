@@ -7,16 +7,18 @@ import kotlin.time.TestTimeSource
 import kotlin.time.milliseconds
 
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runBlockingTest
 
-class ReouterActorTests : StringSpec({
-    "router actor" {
+class ReoutingActorTests : StringSpec({
+    "routing" {
         runBlockingTest {
             val inChannel = Channel<SinkMsg<Int>>(Channel.RENDEZVOUS)
             val outChannels = Array(3) {
                 Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             }
-            val router = RouterActor(
+            val router = RoutingActor(
                 this,
                 inChannel,
                 outChannels.toList().toTypedArray(),
@@ -149,6 +151,140 @@ class BulkActorTests : StringSpec({
             } finally {
                 channel.close()
                 bulkChannel.close()
+            }
+        }
+    }
+})
+
+class BulkSinkActorTests : StringSpec({
+    "retry on error" {
+        runBlockingTest {
+            val channel = Channel<SinkMsg<Unit>>()
+            var retries = 0
+            val actor = BulkSinkActor(
+                this,
+                "<test>",
+                channel,
+                {
+                    retries++
+                    when (retries) {
+                        1 -> SendBulkResult.IOError
+                        2 -> SendBulkResult.Success(1, 1, 1, emptyList())
+                        else -> throw IllegalStateException()
+                    }
+                },
+                minRetryDelayMs = 15_000,
+                maxRetryDelayMs = 600_000,
+            )
+
+            try {
+                channel.send(SinkMsg.Data(listOf(Unit)))
+
+                val flushed = Latch(1)
+                launch {
+                    channel.send(SinkMsg.Flush(flushed))
+                    flushed.await()
+                }
+
+                advanceTimeBy(14_000)
+                flushed.isReleased shouldBe false
+
+                advanceTimeBy(1_000)
+                flushed.isReleased shouldBe true
+            } finally {
+                channel.close()
+            }
+        }
+    }
+
+    "retry on timeout" {
+        runBlockingTest {
+            val channel = Channel<SinkMsg<Unit>>()
+            var retries = 0
+            val actor = BulkSinkActor(
+                this,
+                "<test>",
+                channel,
+                {
+                    retries++
+                    when (retries) {
+                        1 -> {
+                            delay(3_000)
+                            SendBulkResult.Timeout
+                        }
+                        2 -> {
+                            SendBulkResult.Success(1, 1, 1, emptyList())
+                        }
+                        else -> throw IllegalStateException()
+                    }
+                },
+                minRetryDelayMs = 15_000,
+                maxRetryDelayMs = 600_000,
+            )
+
+            try {
+                channel.send(SinkMsg.Data(listOf(Unit)))
+
+                val flushed = Latch(1)
+                launch {
+                    channel.send(SinkMsg.Flush(flushed))
+                    flushed.await()
+                }
+
+                flushed.isReleased shouldBe false
+
+                advanceTimeBy(2_000)
+                flushed.isReleased shouldBe false
+
+                advanceTimeBy(15_000)
+                flushed.isReleased shouldBe false
+
+                advanceTimeBy(1_000)
+                flushed.isReleased shouldBe true
+            } finally {
+                channel.close()
+            }
+        }
+    }
+
+    "retry partially" {
+        runBlockingTest {
+            val channel = Channel<SinkMsg<Int>>()
+            var retries = 0
+            val actor = BulkSinkActor(
+                this,
+                "<test>",
+                channel,
+                {
+                    retries++
+                    when (retries) {
+                        1 -> SendBulkResult.Success(1, 1, 1, listOf(2))
+                        2 -> SendBulkResult.Success(1, 1, 1, emptyList())
+                        else -> throw IllegalStateException()
+                    }
+                },
+                minRetryDelayMs = 15_000,
+                maxRetryDelayMs = 600_000,
+            )
+
+            try {
+                channel.send(SinkMsg.Data(listOf(1, 2, 3)))
+
+                val flushed = Latch(1)
+                launch {
+                    channel.send(SinkMsg.Flush(flushed))
+                    flushed.await()
+                }
+
+                flushed.isReleased shouldBe false
+
+                advanceTimeBy(1_000)
+                flushed.isReleased shouldBe false
+
+                advanceTimeBy(14_000)
+                flushed.isReleased shouldBe true
+            } finally {
+                channel.close()
             }
         }
     }

@@ -19,9 +19,14 @@ class KafkaEsMetrics : PrometheusMetrics() {
         "Number of bulk requests successfully sent to Elasticsearch",
         labelsFactory = ::KafkaEsLabels,
     )
-    val bulksTime by counterLong(
-        "bulk_requests_time_ms",
+    val bulksTotalTime by counterLong(
+        "bulk_requests_total_time_ms",
         "Total time of bulk requests successfully sent to Elasticsearch",
+        labelsFactory = ::KafkaEsLabels,
+    )
+    val bulksTookTime by counterLong(
+        "bulk_requests_took_time_ms",
+        "Time of bulk requests measured by Elasticsearch itself",
         labelsFactory = ::KafkaEsLabels,
     )
     val bulkActionsCount by counterLong(

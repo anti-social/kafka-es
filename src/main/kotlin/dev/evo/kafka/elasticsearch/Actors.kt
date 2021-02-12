@@ -5,12 +5,11 @@ import kotlin.time.TimeSource
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.receiveOrNull
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 
@@ -39,7 +38,7 @@ sealed class SinkMsg<T> {
  * @param outChannels output channels
  * @param router a function that is used to route a message into certain output channel
  */
-class RouterActor<T>(
+class RoutingActor<T>(
     scope: CoroutineScope,
     inChannel: ReceiveChannel<SinkMsg<T>>,
     outChannels: Array<SendChannel<SinkMsg<T>>>,
@@ -168,119 +167,92 @@ class BulkActor<T>(
 }
 
 /**
- * Bulk sink creates all channels and binds them with actors.
- * Methods of this object are not thread-safe.
+ * Represents result of sending bulk actions.
+ */
+sealed class SendBulkResult<out T> {
+    class Success<T>(
+        val totalTimeMs: Long,
+        val tookTimeMs: Long,
+        val successActionsCount: Long,
+        val retryActions: List<T>,
+    ) : SendBulkResult<T>()
+    object IOError : SendBulkResult<Nothing>()
+    object Timeout : SendBulkResult<Nothing>()
+}
+
+/**
+ * Bulk writer actor takes actions from an input channel and sends them into Elasticsearch.
  *
  * @param scope a [CoroutineScope] to launch an actor
- * @param concurrency a number of sink writers
- * @param router a function that used to route message into writer
- * @param bulkSize maximum number of grouped messages inside a single bulk
- * @param bulkDelayMs maximum delay to wait from the first message in a bulk
- * @param maxPendingBulks maximum number of buffered bulks that wait in a queue
- * @param bulkWriterFactory a factory that creates bulk writers
- * @param clock a [TimeSource] for testing purposes
+ * @param channel the input channel
+ * @param sendBulk an Elasticsearch bulk requests sender
+ * @param delayBetweenRequestsMs the delay between bulk requests
+ * @param minRetryDelayMs the minimum delay time before retry
+ * @param maxRetryDelayMs the maximum delay time before retry
  */
-class BulkSink<T>(
-    scope: CoroutineScope,
-    private val concurrency: Int,
-    router: (T) -> Int,
-    bulkSize: Int,
-    bulkDelayMs: Long,
-    maxPendingBulks: Int,
-    bulkWriterFactory: (ReceiveChannel<SinkMsg<T>>) -> Job,
-    private val clock: TimeSource = TimeSource.Monotonic,
+class BulkSinkActor<T>(
+    private val scope: CoroutineScope,
+    private val connectorName: String,
+    channel: ReceiveChannel<SinkMsg<T>>,
+    private val sendBulk: suspend (List<T>) -> SendBulkResult<T>,
+    private val minRetryDelayMs: Long,
+    private val maxRetryDelayMs: Long,
+    delayBetweenRequestsMs: Long = 0,
+    private val metrics: KafkaEsMetrics? = null,
+    clock: TimeSource = TimeSource.Monotonic,
 ) {
-    private var overflowBuffer = emptyList<T>()
-    private val inChannel = Channel<SinkMsg<T>>(Channel.RENDEZVOUS)
-    private val partitionedChannels = (0 until concurrency).map {
-        Channel<SinkMsg<T>>(Channel.RENDEZVOUS)
-    }
-    private val bulkChannels = (0 until concurrency).map {
-        Channel<SinkMsg<T>>(maxPendingBulks)
-    }
-
-    private val routerActor = RouterActor(
-        scope, inChannel, partitionedChannels.toTypedArray(), router
-    )
-    private val bulkActors = partitionedChannels.zip(bulkChannels).map { (channel, bulkChannel) ->
-        BulkActor(scope, channel, bulkChannel, bulkSize, bulkDelayMs)
-    }
-        .toTypedArray()
-    private val bulkWriters = bulkChannels.map { channel ->
-        bulkWriterFactory(channel)
-    }
-
-    sealed class FlushResult(val isFlushed: Boolean) {
-        object Ok : FlushResult(true)
-        object SendTimeout : FlushResult(false)
-        class WaitTimeout(val latch: Latch) : FlushResult(false)
-    }
-
-    suspend fun send(data: List<T>, timeoutMs: Long): Boolean {
-        val sendData = if (overflowBuffer.isNotEmpty()) {
-            overflowBuffer + data
-        } else {
-            data
-        }
-
-        val isSent = select<Boolean> {
-            inChannel.onSend(SinkMsg.Data(sendData)) { true }
-            onTimeout(timeoutMs) { false }
-        }
-        overflowBuffer = if (isSent) {
-            emptyList()
-        } else {
-            sendData
-        }
-        return isSent
-    }
-
-    suspend fun flush(timeoutMs: Long, lastFlushResult: FlushResult? = null): FlushResult {
-        val startFlushMark = clock.markNow()
-        if (overflowBuffer.isNotEmpty()) {
-            if(!send(emptyList(), timeoutMs)) {
-                return FlushResult.SendTimeout
-            }
-        }
-
-        val latch = when (lastFlushResult) {
-            is FlushResult.WaitTimeout -> lastFlushResult.latch
-            else -> {
-                val latch = Latch(concurrency)
-                val isSent = select<Boolean> {
-                    inChannel.onSend(SinkMsg.Flush(latch)) {
-                        true
-                    }
-                    onTimeout(timeoutMs - startFlushMark.elapsedNow().toLongMilliseconds()) {
-                        false
-                    }
+    val job = scope.launch {
+        var lastProcessTimeMark = clock.markNow()
+        while (true) {
+            when (val msg = channel.receiveOrNull()) {
+                is SinkMsg.Data -> {
+                    delay(delayBetweenRequestsMs - lastProcessTimeMark.elapsedNow().toLongMilliseconds())
+                    process(msg.data)
+                    lastProcessTimeMark = clock.markNow()
                 }
-                if (!isSent) {
-                    return FlushResult.SendTimeout
+                is SinkMsg.Flush -> {
+                    msg.flushed.countDown()
                 }
-                latch
+                null -> break
             }
         }
+    }
 
-        return select {
-            latch.onAwait {
-                FlushResult.Ok
+    private fun setLabels(labels: KafkaEsLabels) = labels.apply {
+        connectorName = this@BulkSinkActor.connectorName
+    }
+
+    private suspend fun process(bulk: List<T>) {
+        var retryDelayMs = minRetryDelayMs
+        while (true) {
+            val retryActions = when (val sendResult = sendBulk(bulk)) {
+                is SendBulkResult.Success<*> -> {
+                    metrics?.let { metrics ->
+                        metrics.bulksCount.inc(::setLabels)
+                        metrics.bulksTotalTime.add(sendResult.totalTimeMs, ::setLabels)
+                        metrics.bulksTookTime.add(sendResult.tookTimeMs, ::setLabels)
+                        metrics.bulkActionsCount.add(sendResult.successActionsCount, ::setLabels)
+                    }
+                    sendResult.retryActions
+                }
+                SendBulkResult.IOError -> {
+                    metrics?.bulksErrorCount?.inc(::setLabels)
+                    bulk
+                }
+                SendBulkResult.Timeout -> {
+                    metrics?.bulksTimeoutCount?.inc(::setLabels)
+                    bulk
+                }
             }
-            onTimeout(timeoutMs - startFlushMark.elapsedNow().toLongMilliseconds()) {
-                FlushResult.WaitTimeout(latch)
+            if (retryActions.isEmpty()) {
+                break
             }
+            delay(retryDelayMs)
+            retryDelayMs = (retryDelayMs * 2).coerceAtMost(maxRetryDelayMs)
         }
     }
 
     fun cancel(cause: CancellationException? = null) {
-        bulkWriters.forEach { w -> w.cancel(cause) }
-        bulkActors.forEach { actor -> actor.cancel(cause) }
-        routerActor.cancel(cause)
-    }
-
-    fun close() {
-        inChannel.close()
-        partitionedChannels.forEach { ch -> ch.close() }
-        bulkChannels.forEach { ch -> ch.close() }
+        job.cancel(cause)
     }
 }
