@@ -223,10 +223,6 @@ class ElasticsearchWriter(
         }
     }
 
-    private suspend fun updateMetrics() {
-        // TODO: also count failed actions
-    }
-
     private fun formatFailedItems(
         message: String,
         items: List<FailedItem>,
