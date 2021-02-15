@@ -95,15 +95,23 @@ class ElasticsearchBulkSender(
         }
     }
 
-    suspend fun sendBulk(bulk: List<BulkAction>): SendBulkResult<BulkAction> {
+    suspend fun sendBulk(
+        bulk: List<BulkAction>,
+        refresh: Boolean = false,
+    ): SendBulkResult<BulkAction> {
         try {
             val (response, totalTime) = withTimeout(requestTimeoutMs) {
                 logger.debug("Sending ${bulk.size} action ")
+                val params = if (refresh) {
+                    mapOf("refresh" to listOf("true"))
+                } else {
+                    null
+                }
                 clock.measureTimedValue {
                     esTransport.request(
                         Method.POST,
                         "/_bulk",
-                        parameters = null,
+                        parameters = params,
                         contentType = "application/x-ndjson",
                     ) {
                         for (action in bulk) {
