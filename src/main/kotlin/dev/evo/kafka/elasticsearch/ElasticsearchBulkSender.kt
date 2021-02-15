@@ -36,7 +36,6 @@ data class BulkActionResult(
 ) {
     companion object {
         fun fromJson(elem: JsonElement): BulkActionResult {
-            println(elem)
             val item = elem.jsonObject
             return BulkActionResult(
                 id = item["_id"]?.jsonPrimitive?.content,
