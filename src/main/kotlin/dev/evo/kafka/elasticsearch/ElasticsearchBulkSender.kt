@@ -7,6 +7,7 @@ import dev.evo.elasticart.transport.Method
 import java.io.IOException
 
 import kotlin.time.measureTimedValue
+import kotlin.time.TimeSource
 
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -23,7 +24,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 
 import org.slf4j.LoggerFactory
-import kotlin.time.TimeSource
 
 class ElasticsearchNonRetriableBulkError(msg: String) : IllegalStateException(msg)
 
