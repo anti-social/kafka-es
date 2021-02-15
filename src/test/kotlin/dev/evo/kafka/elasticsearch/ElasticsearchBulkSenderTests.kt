@@ -33,7 +33,7 @@ class ElasticsearchMockTransport(
         val contentType: String?,
         val body: String?,
     ) {
-        var response: String = """{"errors": false, "took": 1}"""
+        var response: String = """{"errors": false, "took": 1, "items": []}"""
 
         fun respond(response: String) {
             this.response = response
@@ -95,10 +95,11 @@ class ElasticsearchBulkSenderTests : StringSpec({
         )
 
         val result = sender.sendBulk(listOf(jsonIndexAction))
-        result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction>>()
+        result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction, BulkActionResult>>()
         result.totalTimeMs shouldBe 2
         result.tookTimeMs shouldBe 1
         result.successActionsCount shouldBe 1
+        result.items shouldBe emptyList()
         result.retryActions shouldBe emptyList()
     }
 
@@ -119,8 +120,8 @@ class ElasticsearchBulkSenderTests : StringSpec({
 
                     respond("""
                         |{"took": 99, "errors": true, "items": [
-                        |    {"index": {"_id": "1", "result": "created", "status": 201}},    
-                        |    {"delete": {"_id": "2", "status": 404, "error": {
+                        |    {"index": {"_id": "1", "_type": "_doc", "_index": "test", "result": "created", "status": 201}},    
+                        |    {"delete": {"_id": "2", "_type": "_doc", "_index": "test", "status": 404, "error": {
                         |        "type": "document_missing_exception",
                         |        "reason": "[_doc][6]: document missing"
                         |    }}}
@@ -139,9 +140,28 @@ class ElasticsearchBulkSenderTests : StringSpec({
                 jsonIndexAction,
                 failedAction,
             ))
-            result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction>>()
+            result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction, BulkActionResult>>()
             result.tookTimeMs shouldBe 99
             result.successActionsCount shouldBe 1
+            result.items shouldBe listOf(
+                BulkActionResult(
+                    id = "1",
+                    type = "_doc",
+                    index = "test",
+                    status = 201,
+                    error = null,
+                ),
+                BulkActionResult(
+                    id = "2",
+                    type = "_doc",
+                    index = "test",
+                    status = 404,
+                    error = BulkActionError.WithType(
+                        type = "document_missing_exception",
+                        reason = "[_doc][6]: document missing",
+                    ),
+                )
+            )
             result.retryActions shouldBe listOf(failedAction)
         }
     }

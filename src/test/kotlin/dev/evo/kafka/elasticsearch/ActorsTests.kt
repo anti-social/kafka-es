@@ -3,6 +3,8 @@ package dev.evo.kafka.elasticsearch
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 
+import java.io.IOException
+
 import kotlin.time.TestTimeSource
 import kotlin.time.milliseconds
 
@@ -168,8 +170,10 @@ class BulkSinkActorTests : StringSpec({
                 {
                     retries++
                     when (retries) {
-                        1 -> SendBulkResult.IOError
-                        2 -> SendBulkResult.Success(1, 1, 1, emptyList())
+                        1 -> SendBulkResult.IOError(IOException("io error"))
+                        2 -> SendBulkResult.Success(
+                            1, 1, 1, emptyList(), emptyList()
+                        )
                         else -> throw IllegalStateException()
                     }
                 },
@@ -213,7 +217,9 @@ class BulkSinkActorTests : StringSpec({
                             SendBulkResult.Timeout
                         }
                         2 -> {
-                            SendBulkResult.Success(1, 1, 1, emptyList())
+                            SendBulkResult.Success(
+                                1, 1, 1, emptyList(), emptyList()
+                            )
                         }
                         else -> throw IllegalStateException()
                     }
@@ -258,8 +264,12 @@ class BulkSinkActorTests : StringSpec({
                 {
                     retries++
                     when (retries) {
-                        1 -> SendBulkResult.Success(1, 1, 1, listOf(2))
-                        2 -> SendBulkResult.Success(1, 1, 1, emptyList())
+                        1 -> SendBulkResult.Success(
+                            1, 1, 1, emptyList(), listOf(2)
+                        )
+                        2 -> SendBulkResult.Success(
+                            1, 1, 1, emptyList(), emptyList()
+                        )
                         else -> throw IllegalStateException()
                     }
                 },

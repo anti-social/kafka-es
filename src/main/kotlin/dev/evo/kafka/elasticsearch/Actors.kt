@@ -169,15 +169,20 @@ class BulkActor<T>(
 /**
  * Represents result of sending bulk actions.
  */
-sealed class SendBulkResult<out T> {
-    class Success<T>(
+sealed class SendBulkResult<out T, out R> {
+    class Success<T, R>(
         val totalTimeMs: Long,
         val tookTimeMs: Long,
         val successActionsCount: Long,
+        val items: List<R>,
         val retryActions: List<T>,
-    ) : SendBulkResult<T>()
-    object IOError : SendBulkResult<Nothing>()
-    object Timeout : SendBulkResult<Nothing>()
+    ) : SendBulkResult<T, R>()
+
+    class IOError(
+        val error: Throwable,
+    ) : SendBulkResult<Nothing, Nothing>()
+
+    object Timeout : SendBulkResult<Nothing, Nothing>()
 }
 
 /**
@@ -190,11 +195,11 @@ sealed class SendBulkResult<out T> {
  * @param minRetryDelayMs the minimum delay time before retry
  * @param maxRetryDelayMs the maximum delay time before retry
  */
-class BulkSinkActor<T>(
+class BulkSinkActor<T, R>(
     private val scope: CoroutineScope,
     private val connectorName: String,
     channel: ReceiveChannel<SinkMsg<T>>,
-    private val sendBulk: suspend (List<T>) -> SendBulkResult<T>,
+    private val sendBulk: suspend (List<T>) -> SendBulkResult<T, R>,
     private val minRetryDelayMs: Long,
     private val maxRetryDelayMs: Long,
     delayBetweenRequestsMs: Long = 0,
@@ -226,7 +231,7 @@ class BulkSinkActor<T>(
         var retryDelayMs = minRetryDelayMs
         while (true) {
             val retryActions = when (val sendResult = sendBulk(bulk)) {
-                is SendBulkResult.Success<*> -> {
+                is SendBulkResult.Success<*, *> -> {
                     metrics?.let { metrics ->
                         metrics.bulksCount.inc(::setLabels)
                         metrics.bulksTotalTime.add(sendResult.totalTimeMs, ::setLabels)
@@ -235,7 +240,7 @@ class BulkSinkActor<T>(
                     }
                     sendResult.retryActions
                 }
-                SendBulkResult.IOError -> {
+                is SendBulkResult.IOError -> {
                     metrics?.bulksErrorCount?.inc(::setLabels)
                     bulk
                 }
