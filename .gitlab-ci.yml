@@ -16,7 +16,7 @@ build:
   - ./gradlew test $GRADLE_ARGS
   - |
     ./gradlew jacocoTestReport $GRADLE_ARGS
-    echo build/reports/jacoco/test/html/index.html
+    cat build/reports/jacoco/test/html/index.html
 
 publish:
   extends: .image
