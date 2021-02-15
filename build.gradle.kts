@@ -87,6 +87,7 @@ tasks {
     }
     val jacocoTestReport by getting(JacocoReport::class) {
         reports {
+            html.isEnabled = true
             xml.isEnabled = true
         }
     }
