@@ -117,7 +117,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             this,
             concurrency = maxInFlightRequest,
             router = { action ->
-                val routingKey = action.meta.routing ?: action.meta.id
+                val routingKey = action.meta.routing ?: action.meta.id()
                 routingKey.hashCode()
             },
             bulkSize = bulkSize,

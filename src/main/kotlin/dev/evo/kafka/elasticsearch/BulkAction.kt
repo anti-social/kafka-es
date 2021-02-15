@@ -32,12 +32,12 @@ sealed class BulkAction {
         /**
          * A source of the bulk action
          */
-        abstract val source: BulkSource
+        abstract var source: BulkSource
     }
 
     data class Index (
         override val meta: BulkMeta.Index,
-        override val source: BulkSource,
+        override var source: BulkSource,
     ) : BulkActionWithSource() {
         constructor(
             id: String? = null,
@@ -68,7 +68,7 @@ sealed class BulkAction {
 
     data class Update (
         override val meta: BulkMeta.Update,
-        override val source: BulkSource,
+        override var source: BulkSource,
     ) : BulkActionWithSource() {
         constructor(
             id: String,
@@ -86,7 +86,7 @@ sealed class BulkAction {
 
     data class Create (
         override val meta: BulkMeta.Create,
-        override val source: BulkSource,
+        override var source: BulkSource,
     ) : BulkActionWithSource() {
         constructor(
             id: String? = null,
@@ -119,62 +119,72 @@ sealed class BulkAction {
  * @param index a name of an index; it will be overridden by the sink connector
  * @param routing a routing key specifies a shard for a document
  */
-sealed class BulkMeta {
-    abstract val id: String?
-    abstract val type: String?
+sealed class BulkMeta(
+) {
+    abstract var type: String?
     abstract var index: String?
-    abstract val routing: String?
-    abstract val parent: String?
+    abstract var routing: String?
+    abstract var parent: String?
+
+    abstract fun id(): String?
 
     @Serializable
     data class Index(
         @SerialName("_id")
-        override val id: String? = null,
+        var id: String? = null,
         @SerialName("_type")
-        override val type: String? = null,
+        override var type: String? = null,
         @SerialName("_index")
         override var index: String? = null,
-        override val routing: String? = null,
-        override val parent: String? = null,
-    ) : BulkMeta()
+        override var routing: String? = null,
+        override var parent: String? = null,
+    ) : BulkMeta() {
+        override fun id() = id
+    }
 
     @Serializable
     data class Delete(
         @SerialName("_id")
-        override val id: String,
+        var id: String,
         @SerialName("_type")
-        override val type: String? = null,
+        override var type: String? = null,
         @SerialName("_index")
         override var index: String? = null,
-        override val routing: String? = null,
-        override val parent: String? = null,
-    ) : BulkMeta()
+        override var routing: String? = null,
+        override var parent: String? = null,
+    ) : BulkMeta() {
+        override fun id() = id
+    }
 
     @Serializable
     data class Update(
         @SerialName("_id")
-        override val id: String,
+        var id: String,
         @SerialName("_type")
-        override val type: String? = null,
+        override var type: String? = null,
         @SerialName("_index")
         override var index: String? = null,
-        override val routing: String? = null,
-        override val parent: String? = null,
+        override var routing: String? = null,
+        override var parent: String? = null,
         @SerialName("retry_on_conflict")
         val retryOnConflict: Int? = null,
-    ) : BulkMeta()
+    ) : BulkMeta() {
+        override fun id() = id
+    }
 
     @Serializable
     data class Create(
         @SerialName("_id")
-        override val id: String? = null,
+        var id: String? = null,
         @SerialName("_type")
-        override val type: String? = null,
+        override var type: String? = null,
         @SerialName("_index")
         override var index: String? = null,
-        override val routing: String? = null,
-        override val parent: String? = null,
-    ) : BulkMeta()
+        override var routing: String? = null,
+        override var parent: String? = null,
+    ) : BulkMeta() {
+        override fun id() = id
+    }
 }
 
 /**
