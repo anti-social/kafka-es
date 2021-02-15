@@ -3,9 +3,12 @@ package dev.evo.kafka.elasticsearch
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
-import kotlinx.serialization.SerializationException
 
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 class BulkMetaTests : StringSpec({
     fun serializeMeta(meta: BulkMeta): String {
@@ -142,5 +145,80 @@ class BulkMetaTests : StringSpec({
         shouldThrow<SerializationException> {
             deserializeMeta("""{"unknown":{}}""")
         }
+    }
+})
+
+class BulkActionTests : StringSpec({
+    fun BulkAction.serialize(): String {
+        return buildString {
+            this@serialize.write(this)
+        }
+    }
+
+    "serialize index" {
+        BulkAction.Index(
+            id = "123",
+            type = "order",
+            index = "test",
+            routing = "99",
+            source = JsonSource(buildJsonObject {
+                put("name", "I'm an order")
+            })
+        ).serialize() shouldBe """
+            |{"index":{"_id":"123","_type":"order","_index":"test","routing":"99"}}
+            |{"name":"I'm an order"}
+            |
+        """.trimMargin()
+    }
+
+    "serialize delete" {
+        BulkAction.Delete(
+            id = "123",
+            type = "order",
+            index = "test",
+            routing = "99",
+        ).serialize() shouldBe """
+            |{"delete":{"_id":"123","_type":"order","_index":"test","routing":"99"}}
+            |
+        """.trimMargin()
+    }
+
+    "serialize update" {
+        BulkAction.Update(
+            id = "123",
+            type = "order",
+            index = "test",
+            routing = "99",
+            retryOnConflict = 3,
+            source = JsonSource(buildJsonObject {
+                putJsonObject("script") {
+                    put("lang", "painless")
+                    put("source", "ctx._source.counter += params.param1")
+                    putJsonObject("params") {
+                        put("param1", 1)
+                    }
+                }
+            })
+        ).serialize() shouldBe """
+            |{"update":{"_id":"123","_type":"order","_index":"test","routing":"99","retry_on_conflict":3}}
+            |{"script":{"lang":"painless","source":"ctx._source.counter += params.param1","params":{"param1":1}}}
+            |
+        """.trimMargin()
+    }
+
+    "serialize create" {
+        BulkAction.Create(
+            id = "123",
+            type = "order",
+            index = "test",
+            routing = "99",
+            source = JsonSource(buildJsonObject {
+                put("name", "I'm an order")
+            })
+        ).serialize() shouldBe """
+            |{"create":{"_id":"123","_type":"order","_index":"test","routing":"99"}}
+            |{"name":"I'm an order"}
+            |
+        """.trimMargin()
     }
 })
