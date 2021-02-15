@@ -94,7 +94,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
             clock = clock,
         )
 
-        val result = sender.sendActions(listOf(jsonIndexAction))
+        val result = sender.sendBulk(listOf(jsonIndexAction))
         result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction>>()
         result.totalTimeMs shouldBe 2
         result.tookTimeMs shouldBe 1
@@ -135,7 +135,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
                 type = "_doc",
                 index = "test",
             )
-            val result = sender.sendActions(listOf(
+            val result = sender.sendBulk(listOf(
                 jsonIndexAction,
                 failedAction,
             ))
@@ -179,7 +179,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
                 index = "test",
             )
             shouldThrow<ElasticsearchNonRetriableBulkError> {
-                sender.sendActions(listOf(
+                sender.sendBulk(listOf(
                     jsonIndexAction,
                     failedAction,
                 ))
@@ -206,7 +206,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
             clock = clock,
         )
 
-        val result = sender.sendActions(
+        val result = sender.sendBulk(
             listOf(
                 BulkAction.Index(
                     id = "1",
@@ -240,7 +240,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
             )
 
             launch {
-                val result = sender.sendActions(listOf(jsonIndexAction))
+                val result = sender.sendBulk(listOf(jsonIndexAction))
                 result.shouldBeInstanceOf<SendBulkResult.Timeout>()
             }
 
@@ -259,7 +259,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
                 clock = clock,
             )
 
-            val result = sender.sendActions(listOf(jsonIndexAction))
+            val result = sender.sendBulk(listOf(jsonIndexAction))
             result.shouldBeInstanceOf<SendBulkResult.IOError>()
         }
     }

@@ -125,7 +125,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             maxPendingBulks = bulkQueueSize,
             bulkWriterFactory = { channel ->
                 BulkSinkActor(
-                    this, name, channel, esBulkSender::sendActions,
+                    this, name, channel, esBulkSender::sendBulk,
                     delayBetweenRequestsMs = delayBetweenRequestsMs,
                     minRetryDelayMs = retryIntervalMs,
                     maxRetryDelayMs = maxRetryIntervalMs,

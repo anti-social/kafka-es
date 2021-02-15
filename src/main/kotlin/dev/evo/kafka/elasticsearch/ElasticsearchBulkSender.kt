@@ -95,7 +95,7 @@ class ElasticsearchBulkSender(
         }
     }
 
-    suspend fun sendActions(bulk: List<BulkAction>): SendBulkResult<BulkAction> {
+    suspend fun sendBulk(bulk: List<BulkAction>): SendBulkResult<BulkAction> {
         try {
             val (response, totalTime) = withTimeout(requestTimeoutMs) {
                 logger.debug("Sending ${bulk.size} action ")
