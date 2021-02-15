@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
+import kotlin.random.Random
 
 @kotlin.time.ExperimentalTime
 @kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -118,7 +119,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             concurrency = maxInFlightRequest,
             router = { action ->
                 val routingKey = action.meta.routing ?: action.meta.id()
-                routingKey.hashCode()
+                routingKey?.hashCode() ?: Random.nextInt()
             },
             bulkSize = bulkSize,
             bulkDelayMs = bulkDelayMs,
