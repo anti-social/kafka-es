@@ -178,7 +178,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     private fun preprocessRecords(records: Collection<SinkRecord>): List<BulkAction> {
-        return buildList {
+        return buildList(records.size) {
             records.forEach { record ->
                 when (val value = record.value()) {
                     is BulkAction -> {
