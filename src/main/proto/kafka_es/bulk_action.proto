@@ -1,11 +1,9 @@
 syntax = "proto3";
 
-package indexator;
+package kafka_es;
 
 option java_package = "dev.evo.kafka.elasticsearch";
 option java_outer_classname = "BulkActionProto";
-
-import "google/protobuf/struct.proto";
 
 message BulkAction {
     enum OpType {
