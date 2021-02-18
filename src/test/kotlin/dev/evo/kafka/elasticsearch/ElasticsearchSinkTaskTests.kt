@@ -56,6 +56,49 @@ class ElasticsearchSinkTaskTests : StringSpec({
         }
     }
 
+    "multiple concurrent requests" {
+        runBlockingTest {
+            val sentBodies = mutableSetOf<String>()
+            val esTransport = ElasticsearchMockTransport {
+                sentBodies.add(body!!)
+            }
+            ElasticsearchSinkTask(esTransport).startWith(
+                mutableMapOf(
+                    "name" to "test-connector",
+                    "connection.url" to "http://example.com:9200",
+                    "topic" to TOPIC,
+                    "index" to "test",
+                    "max.in.flight.requests" to "2",
+                )
+            ) {
+                put(listOf(
+                    newRecord(
+                        TOPIC, 0, 0L,
+                        null,
+                        BulkAction.Delete("1"),
+                    ),
+                    newRecord(
+                        TOPIC, 0, 1L,
+                        null,
+                        BulkAction.Delete("2"),
+                    ),
+                ))
+                val commitBall = mapOf(TopicPartition(TOPIC, 0) to OffsetAndMetadata(2L))
+                preCommit(commitBall) shouldBe commitBall
+
+                sentBodies shouldBe setOf("""
+                        |{"delete":{"_id":"1","_index":"test"}}
+                        |
+                    """.trimMargin(),
+                    """
+                        |{"delete":{"_id":"2","_index":"test"}}
+                        |
+                    """.trimMargin(),
+                )
+            }
+        }
+    }
+
     "multiple actions in single record" {
         runBlockingTest {
             val esTransport = ElasticsearchMockTransport {

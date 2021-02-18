@@ -32,22 +32,45 @@ class ElasticsearchSink<T>(
     bulkWriterFactory: (ReceiveChannel<SinkMsg<T>>) -> Job,
     private val clock: TimeSource = TimeSource.Monotonic,
 ) {
-    private var overflowBuffer = emptyList<T>()
-    private val inChannel = Channel<SinkMsg<T>>(Channel.RENDEZVOUS)
-    private val partitionedChannels = (0 until concurrency).map {
-        Channel<SinkMsg<T>>(Channel.RENDEZVOUS)
-    }
-    private val bulkChannels = (0 until concurrency).map {
-        Channel<SinkMsg<T>>(maxPendingBulks)
+    init {
+        require(concurrency > 0) {
+            "Concurrency must be greater than 0"
+        }
     }
 
-    private val routerActor = RoutingActor(
-        scope, inChannel, partitionedChannels.toTypedArray(), router
-    )
-    private val bulkActors = partitionedChannels.zip(bulkChannels).map { (channel, bulkChannel) ->
-        BulkActor(scope, channel, bulkChannel, bulkSize, bulkDelayMs)
+    private var overflowBuffer = emptyList<T>()
+    private val inChannel = Channel<SinkMsg<T>>(Channel.RENDEZVOUS)
+
+    private val partitionedChannels: List<Channel<SinkMsg<T>>>?
+    private val routerActor: RoutingActor<T>?
+
+    private val bulkChannels: List<Channel<SinkMsg<T>>>
+    private val bulkActors: List<BulkActor<T>>
+
+    init {
+        if (concurrency > 1) {
+            partitionedChannels = (0 until concurrency).map {
+                Channel(Channel.RENDEZVOUS)
+            }
+            routerActor = RoutingActor(
+                scope, inChannel, partitionedChannels.toTypedArray(), router
+            )
+            bulkChannels = (0 until concurrency).map {
+                Channel(maxPendingBulks)
+            }
+            bulkActors = partitionedChannels.zip(bulkChannels).map { (channel, bulkChannel) ->
+                BulkActor(scope, channel, bulkChannel, bulkSize, bulkDelayMs)
+            }
+        } else {
+            partitionedChannels = null
+            routerActor = null
+            bulkChannels = listOf(Channel(maxPendingBulks))
+            bulkActors = listOf(
+                BulkActor(scope, inChannel, bulkChannels[0], bulkSize, bulkDelayMs)
+            )
+        }
     }
-        .toTypedArray()
+
     private val bulkWriters = bulkChannels.map { channel ->
         bulkWriterFactory(channel)
     }
@@ -117,12 +140,12 @@ class ElasticsearchSink<T>(
     fun cancel(cause: CancellationException? = null) {
         bulkWriters.forEach { w -> w.cancel(cause) }
         bulkActors.forEach { actor -> actor.cancel(cause) }
-        routerActor.cancel(cause)
+        routerActor?.cancel(cause)
     }
 
     fun close() {
         inChannel.close()
-        partitionedChannels.forEach { ch -> ch.close() }
+        partitionedChannels?.forEach { ch -> ch.close() }
         bulkChannels.forEach { ch -> ch.close() }
     }
 }
