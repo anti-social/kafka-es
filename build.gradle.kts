@@ -24,7 +24,7 @@ repositories {
     mavenCentral()
 }
 
-group = "dev.evo"
+group = "dev.evo.kafka-es"
 
 val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
         ?: "v0.0.0-unknown"
