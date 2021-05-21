@@ -10,8 +10,10 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     application
     java
-    `maven-publish`
     jacoco
+    `maven-publish`
+    signing
+    id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
     id("org.jetbrains.kotlin.jvm") version "1.4.21"
     id("com.google.protobuf") version "0.8.14"
     id("org.ajoberstar.grgit") version "4.1.0"
@@ -21,7 +23,7 @@ repositories {
      mavenCentral()
 }
 
-group = "company.evo"
+group = "dev.evo.kafka-es"
 
 val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
         ?: "v0.0.0-unknown"
@@ -110,8 +112,16 @@ val compileTestKotlin by tasks.getting(KotlinCompile::class) {
 val jar by tasks.getting(Jar::class)
 
 val sourceJar by tasks.creating(Jar::class) {
-    archiveClassifier.set("source")
+    archiveClassifier.set("sources")
     from(sourceSets["main"].allSource)
+}
+
+val javadocJar by project.tasks.registering(Jar::class) {
+    archiveClassifier.set("javadoc")
+}
+
+signing {
+    sign(publishing.publications)
 }
 
 publishing {
@@ -122,23 +132,32 @@ publishing {
             version = project.version.toString()
             from(components["java"])
             artifact(sourceJar)
+            artifact(javadocJar)
 
             pom {
+                name.set("kafka-es")
+                description.set("Kafka connect elasticsearch sink")
+                url.set("https://github.com/anti-social/kafka-es")
+
                 licenses {
                     license {
                         name.set("The Apache License, Version 2.0")
                         url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
                     }
                 }
+
+                scm {
+                    url.set("https://github.com/anti-social/kafka-es")
+                    connection.set("scm:https://github.com/anti-social/kafka-es.git")
+                    developerConnection.set("scm:git://github.com/anti-social/kafka-es.git")
+                }
+
                 developers {
                     developer {
-                        name.set("Alexander Koval")
+                        id.set("anti-social")
+                        name.set("Oleksandr Koval")
                         email.set("kovalidis@gmail.com")
                     }
-                }
-                scm {
-                    connection.set("scm:git:git://github.com/anti-social/kafka-es.git")
-                    url.set("https://github.com/anti-social/kafka-es")
                 }
             }
         }
@@ -151,24 +170,45 @@ publishing {
         }
 
         maven {
-            val bintrayPackageName = project.name
-            val bintrayRepoName = findProperty("bintrayRepoName")?.toString()
-                    ?: System.getenv("BINTRAY_REPO_NAME")
-            val bintrayUsername = findProperty("bintrayUser")?.toString()
-                    ?: System.getenv("BINTRAY_USER")
-            val bintrayApiKey = findProperty("bintrayApiKey")?.toString()
-                    ?: System.getenv("BINTRAY_API_KEY")
-            val bintrayPublish = findProperty("bintrayPublish")?.toString()
-                    ?: System.getenv("BINTRAY_PUBLISH")
-                    ?: "0"
+            val gitlabRepoUrl = findProperty("gitlabRepoUrl")?.toString()
+                ?: System.getenv("GITLAB_REPO_URL")
+            val gitlabToken = project.properties["gitlabToken"]?.toString()
+                ?: System.getenv("GITLAB_TOKEN")
 
-            name = "bintray"
-            url = uri("https://api.bintray.com/maven/$bintrayUsername/$bintrayRepoName/$bintrayPackageName/;publish=$bintrayPublish")
-
-            credentials {
-                username = bintrayUsername
-                password = bintrayApiKey
+            name = "gitlab"
+            if (gitlabRepoUrl != null) {
+                url = uri(gitlabRepoUrl)
+                credentials(HttpHeaderCredentials::class) {
+                    name = "Job-Token"
+                    value = gitlabToken
+                }
+                authentication {
+                    create<HttpHeaderAuthentication>("header")
+                }
             }
+        }
+    }
+
+
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            val baseSonatypeUrl = project.properties["sonatypeUrl"]?.toString()
+                ?: System.getenv("SONATYPE_URL")
+                ?: "https://s01.oss.sonatype.org"
+
+            nexusUrl.set(uri("$baseSonatypeUrl/service/local/"))
+            snapshotRepositoryUrl.set(uri("$baseSonatypeUrl/content/repositories/snapshots/"))
+
+            val sonatypeUser = project.properties["sonatypeUser"]?.toString()
+                ?: System.getenv("SONATYPE_USER")
+            val sonatypePassword = project.properties["sonatypePassword"]?.toString()
+                ?: System.getenv("SONATYPE_PASSWORD")
+
+            username.set(sonatypeUser)
+            password.set(sonatypePassword)
         }
     }
 }
