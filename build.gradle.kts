@@ -152,21 +152,29 @@ publishing {
             artifact(javadocJar)
 
             pom {
+                name.set("kafka-es")
+                description.set("Kafka connect elasticsearch sink")
+                url.set("https://github.com/anti-social/kafka-es")
+
                 licenses {
                     license {
                         name.set("The Apache License, Version 2.0")
                         url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
                     }
                 }
+
+                scm {
+                    url.set("https://github.com/anti-social/kafka-es")
+                    connection.set("scm:https://github.com/anti-social/kafka-es.git")
+                    developerConnection.set("scm:git://github.com/anti-social/kafka-es.git")
+                }
+
                 developers {
                     developer {
-                        name.set("Alexander Koval")
+                        id.set("anti-social")
+                        name.set("Oleksandr Koval")
                         email.set("kovalidis@gmail.com")
                     }
-                }
-                scm {
-                    connection.set("scm:git:git://github.com/anti-social/kafka-es.git")
-                    url.set("https://github.com/anti-social/kafka-es")
                 }
             }
         }
@@ -197,6 +205,8 @@ publishing {
             }
         }
     }
+
+
 }
 
 nexusPublishing {
