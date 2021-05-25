@@ -188,8 +188,6 @@ publishing {
             }
         }
     }
-
-
 }
 
 nexusPublishing {
