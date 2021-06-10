@@ -100,7 +100,7 @@ class ElasticsearchSink<T>(
         return isSent
     }
 
-    suspend fun flush(timeoutMs: Long, lastFlushResult: FlushResult? = null): FlushResult {
+    suspend fun flush(timeoutMs: Long, lastFlushResult: FlushResult): FlushResult {
         val startFlushMark = clock.markNow()
         if (overflowBuffer.isNotEmpty()) {
             if(!send(emptyList(), timeoutMs)) {
