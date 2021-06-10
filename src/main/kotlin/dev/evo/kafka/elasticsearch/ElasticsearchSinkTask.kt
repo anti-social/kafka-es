@@ -110,7 +110,12 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         }
     }
 
+    override fun stop() {
+        job.cancel()
+    }
+
     override fun open(partitions: MutableCollection<TopicPartition>) {
+        logger.info("Opening [$name]")
         val esBulkSender = ElasticsearchBulkSender(
             esTransport, requestTimeoutMs
         )
@@ -137,14 +142,10 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         )
     }
 
-    override fun stop() {
-        job.cancel()
-    }
-
     override fun close(partitions: MutableCollection<TopicPartition>) {
         // close is called before partition rebalancing so we need to clean up all
         // messages which were sent earlier
-        logger.info("[$name] Closing ElasticsearchSinkTask")
+        logger.info("Closing [$name]")
         sink.close()
         lastFlushResult = ElasticsearchSink.FlushResult.Ok
         processedRecords = 0
