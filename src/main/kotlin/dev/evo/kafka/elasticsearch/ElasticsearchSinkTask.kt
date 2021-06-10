@@ -59,8 +59,9 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private lateinit var sink: ElasticsearchSink<BulkAction>
     private var processedRecords = 0L
     private var lastFlushResult: ElasticsearchSink.FlushResult = ElasticsearchSink.FlushResult.Ok
+
     private val isPaused
-        get() = !lastFlushResult.isFlushed
+        get() = lastFlushResult !is ElasticsearchSink.FlushResult.Ok
 
     companion object {
         private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
@@ -215,7 +216,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         val flushResult = runBlocking {
             sink.flush(flushTimeoutMs, lastFlushResult)
         }
-        if (!flushResult.isFlushed) {
+        if (flushResult !is ElasticsearchSink.FlushResult.Ok) {
             pause(flushResult)
             return EMPTY_OFFSETS
         }

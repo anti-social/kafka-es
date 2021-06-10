@@ -75,10 +75,10 @@ class ElasticsearchSink<T>(
         bulkWriterFactory(channel)
     }
 
-    sealed class FlushResult(val isFlushed: Boolean) {
-        object Ok : FlushResult(true)
-        object SendTimeout : FlushResult(false)
-        class WaitTimeout(val latch: Latch) : FlushResult(false)
+    sealed class FlushResult {
+        object Ok : FlushResult()
+        object SendTimeout : FlushResult()
+        class WaitTimeout(val latch: Latch) : FlushResult()
     }
 
     suspend fun send(data: List<T>, timeoutMs: Long): Boolean {
