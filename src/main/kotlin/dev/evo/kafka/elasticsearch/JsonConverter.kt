@@ -1,6 +1,5 @@
 package dev.evo.kafka.elasticsearch
 
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
@@ -42,7 +41,9 @@ class JsonConverter : Converter {
         if (value == null) {
             return null
         }
-        return json.encodeToString(value as JsonElement).toByteArray(Charsets.UTF_8)
+        return json
+            .encodeToString(JsonElement.serializer(), value as JsonElement)
+            .toByteArray(Charsets.UTF_8)
     }
 
     override fun toConnectData(topic: String, headers: Headers?, value: ByteArray?): SchemaAndValue {

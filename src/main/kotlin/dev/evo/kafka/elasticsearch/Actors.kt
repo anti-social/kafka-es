@@ -50,7 +50,7 @@ class RoutingActor<T>(
 
     private val job = scope.launch {
         while (true) {
-            when (val msg = inChannel.receiveOrNull()) {
+            when (val msg = inChannel.receiveCatching().getOrNull()) {
                 is SinkMsg.Data -> {
                     if (outChannels.size == 1) {
                         outChannels[0].send(msg)
@@ -117,7 +117,7 @@ class BulkActor<T>(
                     // Wait for the first message endlessly
                     Long.MAX_VALUE
                 } else {
-                    bulkDelayMs - firstMessageMark.elapsedNow().toLongMilliseconds()
+                    bulkDelayMs - firstMessageMark.elapsedNow().inWholeMilliseconds
                 }
             }
 
@@ -209,9 +209,9 @@ class BulkSinkActor<T, R>(
     val job = scope.launch {
         var lastProcessTimeMark = clock.markNow()
         while (true) {
-            when (val msg = channel.receiveOrNull()) {
+            when (val msg = channel.receiveCatching().getOrNull()) {
                 is SinkMsg.Data -> {
-                    delay(delayBetweenRequestsMs - lastProcessTimeMark.elapsedNow().toLongMilliseconds())
+                    delay(delayBetweenRequestsMs - lastProcessTimeMark.elapsedNow().inWholeMilliseconds)
                     process(msg.data)
                     lastProcessTimeMark = clock.markNow()
                 }

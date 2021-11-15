@@ -116,7 +116,7 @@ class ElasticsearchSink<T>(
                     inChannel.onSend(SinkMsg.Flush(latch)) {
                         true
                     }
-                    onTimeout(timeoutMs - startFlushMark.elapsedNow().toLongMilliseconds()) {
+                    onTimeout(timeoutMs - startFlushMark.elapsedNow().inWholeMilliseconds) {
                         false
                     }
                 }
@@ -131,7 +131,7 @@ class ElasticsearchSink<T>(
             latch.onAwait {
                 FlushResult.Ok
             }
-            onTimeout(timeoutMs - startFlushMark.elapsedNow().toLongMilliseconds()) {
+            onTimeout(timeoutMs - startFlushMark.elapsedNow().inWholeMilliseconds) {
                 FlushResult.WaitTimeout(latch)
             }
         }

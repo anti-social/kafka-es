@@ -12,7 +12,6 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -129,7 +128,7 @@ class ElasticsearchBulkSender(
                     }
                 }
             }
-            val bulkResult = Json.decodeFromString<JsonElement>(response).jsonObject
+            val bulkResult = Json.decodeFromString(JsonElement.serializer(), response).jsonObject
             val itemsResult = requireNotNull(
                 bulkResult["items"]?.jsonArray
             )
@@ -144,7 +143,7 @@ class ElasticsearchBulkSender(
             }
             if (!hasErrors) {
                 return SendBulkResult.Success(
-                    totalTime.toLongMilliseconds(),
+                    totalTime.inWholeMilliseconds,
                     tookTimeMs,
                     bulk.size.toLong(),
                     items,
@@ -182,7 +181,7 @@ class ElasticsearchBulkSender(
             }
 
             return SendBulkResult.Success(
-                totalTime.toLongMilliseconds(),
+                totalTime.inWholeMilliseconds,
                 tookTimeMs,
                 (bulk.size - retryActions.size).toLong(),
                 items,

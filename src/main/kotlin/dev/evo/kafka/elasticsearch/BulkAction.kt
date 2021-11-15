@@ -3,7 +3,6 @@ package dev.evo.kafka.elasticsearch
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -251,7 +250,7 @@ data class JsonSource(val source: JsonElement) : BulkSource {
     private val json = Json.Default
 
     override fun write(writer: Appendable) {
-        writer.append(json.encodeToString(source))
+        writer.append(json.encodeToString(JsonElement.serializer(), source))
     }
 }
 

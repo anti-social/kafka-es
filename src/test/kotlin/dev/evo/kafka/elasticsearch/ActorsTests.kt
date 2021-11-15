@@ -4,9 +4,9 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 
 import java.io.IOException
+import kotlin.time.Duration
 
 import kotlin.time.TestTimeSource
-import kotlin.time.milliseconds
 
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -29,13 +29,13 @@ class ReoutingActorTests : StringSpec({
             try {
                 inChannel.send(SinkMsg.Data(listOf(0, 1, 4, Int.MIN_VALUE, Int.MAX_VALUE)))
                 inChannel.send(SinkMsg.Data(listOf(0, Int.MAX_VALUE)))
-                outChannels[0].poll() shouldBe SinkMsg.Data(listOf(0, Int.MIN_VALUE))
-                outChannels[0].poll() shouldBe SinkMsg.Data(listOf(0))
-                outChannels[0].poll() shouldBe null
-                outChannels[1].poll() shouldBe SinkMsg.Data(listOf(1, 4, Int.MAX_VALUE))
-                outChannels[1].poll() shouldBe SinkMsg.Data(listOf(Int.MAX_VALUE))
-                outChannels[1].poll() shouldBe null
-                outChannels[2].poll() shouldBe null
+                outChannels[0].tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(0, Int.MIN_VALUE))
+                outChannels[0].tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(0))
+                outChannels[0].tryReceive().getOrNull() shouldBe null
+                outChannels[1].tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 4, Int.MAX_VALUE))
+                outChannels[1].tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(Int.MAX_VALUE))
+                outChannels[1].tryReceive().getOrNull() shouldBe null
+                outChannels[2].tryReceive().getOrNull() shouldBe null
             } finally {
                 router.cancel()
             }
@@ -58,20 +58,20 @@ class BulkActorTests : StringSpec({
             try {
                 channel.send(SinkMsg.Data(emptyList()))
                 channel.send(SinkMsg.Data(emptyList()))
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe null
 
                 channel.send(SinkMsg.Data(listOf(1)))
                 channel.send(SinkMsg.Data(listOf(2)))
-                bulkChannel.poll() shouldBe SinkMsg.Data(listOf(1, 2))
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 2))
+                bulkChannel.tryReceive().getOrNull() shouldBe null
 
                 channel.send(SinkMsg.Data(listOf(1, 2, 3, 4, 5)))
-                bulkChannel.poll() shouldBe SinkMsg.Data(listOf(1, 2))
-                bulkChannel.poll() shouldBe SinkMsg.Data(listOf(3, 4))
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 2))
+                bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(3, 4))
+                bulkChannel.tryReceive().getOrNull() shouldBe null
                 channel.send(SinkMsg.Data(listOf(6)))
-                bulkChannel.poll() shouldBe SinkMsg.Data(listOf(5, 6))
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(5, 6))
+                bulkChannel.tryReceive().getOrNull() shouldBe null
             } finally {
                 channel.close()
                 bulkChannel.close()
@@ -95,21 +95,21 @@ class BulkActorTests : StringSpec({
 
             try {
                 channel.send(SinkMsg.Data(listOf(1)))
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe null
 
-                clock += 8.milliseconds
+                clock += Duration.milliseconds(8)
                 advanceTimeBy(8)
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe null
 
                 channel.send(SinkMsg.Data(listOf(2)))
 
-                clock += 1.milliseconds
+                clock += Duration.milliseconds(1)
                 advanceTimeBy(1)
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe null
 
-                clock += 1.milliseconds
+                clock += Duration.milliseconds(1)
                 advanceTimeBy(1)
-                bulkChannel.poll() shouldBe SinkMsg.Data(listOf(1, 2))
+                bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 2))
             } finally {
                 channel.close()
                 bulkChannel.close()
@@ -132,24 +132,24 @@ class BulkActorTests : StringSpec({
             )
 
             try {
-                clock += 8.milliseconds
+                clock += Duration.milliseconds(8)
                 advanceTimeBy(8)
                 channel.send(SinkMsg.Data(listOf(1)))
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe null
 
-                clock += 9.milliseconds
+                clock += Duration.milliseconds(9)
                 advanceTimeBy(9)
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe null
                 channel.send(SinkMsg.Data(listOf(2, 3, 4)))
-                bulkChannel.poll() shouldBe SinkMsg.Data(listOf(1, 2, 3))
+                bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 2, 3))
 
-                clock += 9.milliseconds
+                clock += Duration.milliseconds(9)
                 advanceTimeBy(9)
-                bulkChannel.poll() shouldBe null
+                bulkChannel.tryReceive().getOrNull() shouldBe null
 
-                clock += 1.milliseconds
+                clock += Duration.milliseconds(1)
                 advanceTimeBy(1)
-                bulkChannel.poll() shouldBe SinkMsg.Data(listOf(4))
+                bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(4))
             } finally {
                 channel.close()
                 bulkChannel.close()
