@@ -14,8 +14,8 @@ plugins {
     `maven-publish`
     signing
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
-    id("org.jetbrains.kotlin.jvm") version "1.4.21"
-    kotlin("plugin.serialization") version "1.4.21"
+    id("org.jetbrains.kotlin.jvm") version "1.5.31"
+    kotlin("plugin.serialization") version "1.5.31"
     id("com.google.protobuf") version "0.8.14"
     id("org.ajoberstar.grgit") version "4.1.0"
 }
@@ -30,16 +30,16 @@ val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
         ?: "v0.0.0-unknown"
 version = gitDescribe.trimStart('v')
 
-val kotlinCoroutinesVersion = "1.4.2"
-val kotlinSerializationVersion = "1.0.1"
+val kotlinCoroutinesVersion = "1.5.2"
+val kotlinSerializationVersion = "1.3.0-RC"
 val kafkaVersion = "2.7.0"
 val protobufVersion = "3.14.0"
 val junitJupiterVersion = "5.2.0"
 val assertjVersion = "3.8.0"
-val kotestVersion = "4.4.0.RC2"
+val kotestVersion = "4.4.3"
 val esTransportVersion = "0.0.9"
-val prometheusKtVersion = "0.1.1"
-val ktorVersion = "1.5.1"
+val prometheusKtVersion = "0.1.2"
+val ktorVersion = "1.6.3"
 val argparserVersion = "2.0.7"
 
 dependencies {
