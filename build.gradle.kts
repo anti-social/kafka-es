@@ -16,7 +16,7 @@ plugins {
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
     id("org.jetbrains.kotlin.jvm") version "1.5.31"
     kotlin("plugin.serialization") version "1.5.31"
-    id("com.google.protobuf") version "0.8.14"
+    id("com.google.protobuf") version "0.8.17"
     id("org.ajoberstar.grgit") version "4.1.0"
 }
 
@@ -33,7 +33,7 @@ version = gitDescribe.trimStart('v')
 val kotlinCoroutinesVersion = "1.5.2"
 val kotlinSerializationVersion = "1.3.0-RC"
 val kafkaVersion = "3.0.0"
-val protobufVersion = "3.14.0"
+val protobufVersion = "3.19.1"
 val junitJupiterVersion = "5.2.0"
 val assertjVersion = "3.8.0"
 val kotestVersion = "4.4.3"
