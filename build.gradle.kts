@@ -37,7 +37,7 @@ val protobufVersion = "3.19.1"
 val assertjVersion = "3.8.0"
 val kotestVersion = "4.6.3"
 val esTransportVersion = "0.0.9"
-val prometheusKtVersion = "0.1.2"
+val prometheusKtVersion = "0.1.3"
 val ktorVersion = "1.6.4"
 val argparserVersion = "2.0.7"
 
