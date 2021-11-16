@@ -34,7 +34,6 @@ val kotlinCoroutinesVersion = "1.5.2"
 val kotlinSerializationVersion = "1.3.0-RC"
 val kafkaVersion = "3.0.0"
 val protobufVersion = "3.19.1"
-val junitJupiterVersion = "5.2.0"
 val assertjVersion = "3.8.0"
 val kotestVersion = "4.4.3"
 val esTransportVersion = "0.0.9"
@@ -58,9 +57,6 @@ dependencies {
 
     implementation("com.xenomachina:kotlin-argparser:$argparserVersion")
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:$junitJupiterVersion")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
-    testImplementation("org.assertj:assertj-core:$assertjVersion")
     testImplementation("io.kotest:kotest-runner-junit5:$kotestVersion")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:$kotlinCoroutinesVersion")
 }
