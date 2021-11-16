@@ -43,7 +43,6 @@ val ktorVersion = "1.6.4"
 val argparserVersion = "2.0.7"
 
 dependencies {
-    implementation(kotlin("stdlib-jdk8"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinCoroutinesVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinSerializationVersion")
     implementation("org.apache.kafka:connect-api:$kafkaVersion")
