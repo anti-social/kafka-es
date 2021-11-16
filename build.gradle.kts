@@ -51,7 +51,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java:$protobufVersion")
     implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
 
-    implementation("dev.evo.elasticart:elasticart-elasticsearch-transport:$esTransportVersion")
+    api("dev.evo.elasticart:elasticart-elasticsearch-transport:$esTransportVersion")
     implementation("dev.evo.prometheus:prometheus-kt-ktor:$prometheusKtVersion")
     implementation("io.ktor:ktor-client-cio:$ktorVersion")
     implementation("io.ktor:ktor-server-core:$ktorVersion")
