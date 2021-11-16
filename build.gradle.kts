@@ -32,7 +32,7 @@ version = gitDescribe.trimStart('v')
 
 val kotlinCoroutinesVersion = "1.5.2"
 val kotlinSerializationVersion = "1.3.0-RC"
-val kafkaVersion = "2.7.0"
+val kafkaVersion = "3.0.0"
 val protobufVersion = "3.14.0"
 val junitJupiterVersion = "5.2.0"
 val assertjVersion = "3.8.0"
