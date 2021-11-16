@@ -73,6 +73,7 @@ class BulkActorTests : StringSpec({
                 bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(5, 6))
                 bulkChannel.tryReceive().getOrNull() shouldBe null
             } finally {
+                bulker.cancel()
                 channel.close()
                 bulkChannel.close()
             }
@@ -111,6 +112,7 @@ class BulkActorTests : StringSpec({
                 advanceTimeBy(1)
                 bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 2))
             } finally {
+                bulker.cancel()
                 channel.close()
                 bulkChannel.close()
             }
@@ -151,6 +153,7 @@ class BulkActorTests : StringSpec({
                 advanceTimeBy(1)
                 bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(4))
             } finally {
+                bulker.cancel()
                 channel.close()
                 bulkChannel.close()
             }
@@ -163,7 +166,7 @@ class BulkSinkActorTests : StringSpec({
         runBlockingTest {
             val channel = Channel<SinkMsg<Unit>>()
             var retries = 0
-            val actor = BulkSinkActor(
+            val sink = BulkSinkActor(
                 this,
                 "<test>",
                 channel,
@@ -196,6 +199,7 @@ class BulkSinkActorTests : StringSpec({
                 advanceTimeBy(1_000)
                 flushed.isReleased shouldBe true
             } finally {
+                sink.cancel()
                 channel.close()
             }
         }
@@ -205,7 +209,7 @@ class BulkSinkActorTests : StringSpec({
         runBlockingTest {
             val channel = Channel<SinkMsg<Unit>>()
             var retries = 0
-            val actor = BulkSinkActor(
+            val sink = BulkSinkActor(
                 this,
                 "<test>",
                 channel,
@@ -248,6 +252,7 @@ class BulkSinkActorTests : StringSpec({
                 advanceTimeBy(1_000)
                 flushed.isReleased shouldBe true
             } finally {
+                sink.cancel()
                 channel.close()
             }
         }
@@ -257,7 +262,7 @@ class BulkSinkActorTests : StringSpec({
         runBlockingTest {
             val channel = Channel<SinkMsg<Int>>()
             var retries = 0
-            val actor = BulkSinkActor(
+            val sink = BulkSinkActor(
                 this,
                 "<test>",
                 channel,
@@ -294,6 +299,7 @@ class BulkSinkActorTests : StringSpec({
                 advanceTimeBy(14_000)
                 flushed.isReleased shouldBe true
             } finally {
+                sink.cancel()
                 channel.close()
             }
         }
