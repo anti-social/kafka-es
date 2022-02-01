@@ -3,8 +3,8 @@ package dev.evo.kafka.elasticsearch
 import com.xenomachina.argparser.ArgParser
 import com.xenomachina.argparser.default
 import com.xenomachina.argparser.mainBody
-import dev.evo.prometheus.ktor.MetricsFeature
 
+import dev.evo.prometheus.ktor.MetricsFeature
 import dev.evo.prometheus.ktor.metricsModule
 
 import io.ktor.server.engine.embeddedServer

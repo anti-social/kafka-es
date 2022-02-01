@@ -142,10 +142,4 @@ class ElasticsearchSink<T>(
         bulkActors.forEach { actor -> actor.cancel(cause) }
         routerActor?.cancel(cause)
     }
-
-    fun close() {
-        inChannel.close()
-        partitionedChannels?.forEach { ch -> ch.close() }
-        bulkChannels.forEach { ch -> ch.close() }
-    }
 }
