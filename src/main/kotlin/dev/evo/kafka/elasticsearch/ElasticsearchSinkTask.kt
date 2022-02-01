@@ -21,20 +21,31 @@ import org.apache.kafka.connect.sink.SinkTask
 import org.slf4j.LoggerFactory
 
 import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
 
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
-import kotlin.random.Random
 
+/**
+ * Sink task lifecycle:
+ * - initialize
+ * - start
+ * - open
+ * - close
+ * - stop
+ */
 @kotlin.time.ExperimentalTime
 @kotlinx.coroutines.ExperimentalCoroutinesApi
 class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
-    lateinit var job: Job
-    override val coroutineContext: CoroutineContext
-        get() = Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
+    override val coroutineContext: CoroutineContext =
+        Job() + Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
             throwable.printStackTrace()
             lastException.set(throwable)
         }
@@ -74,8 +85,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun start(props: MutableMap<String, String>) {
-        logger.debug("Starting ElasticsearchSinkTask")
-        job = Job()
+        logger.debug("[$name] Starting")
 
         try {
             val config = Config(props)
@@ -112,11 +122,17 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun stop() {
-        job.cancel()
+        logger.info("[$name] Stopping")
+
+        cancel()
     }
 
     override fun open(partitions: MutableCollection<TopicPartition>) {
-        logger.info("Opening [$name]")
+        logger.info("[$name] Opening")
+
+        lastFlushResult = ElasticsearchSink.FlushResult.Ok
+        processedRecords = 0
+
         val esBulkSender = ElasticsearchBulkSender(
             esTransport, requestTimeoutMs
         )
@@ -144,12 +160,12 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun close(partitions: MutableCollection<TopicPartition>) {
-        // close is called before partition rebalancing so we need to clean up all
-        // messages which were sent earlier
-        logger.info("Closing [$name]")
-        sink.close()
-        lastFlushResult = ElasticsearchSink.FlushResult.Ok
-        processedRecords = 0
+        logger.info("[$name] Closing")
+
+        coroutineContext.job.cancelChildren()
+        runBlocking {
+            coroutineContext.job.children.toList().joinAll()
+        }
     }
 
     override fun version(): String {
@@ -213,7 +229,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     override fun preCommit(
         currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
     ): MutableMap<TopicPartition, OffsetAndMetadata> {
-        logger.info("Committing [$name]")
+        logger.debug("[$name] Committing")
 
         val flushResult = runBlocking {
             sink.flush(flushTimeoutMs, lastFlushResult)
