@@ -34,6 +34,7 @@ val kotlinCoroutinesVersion = "1.5.2"
 val kotlinSerializationVersion = "1.3.0-RC"
 val kafkaVersion = "3.0.0"
 val protobufVersion = "3.19.1"
+val slf4jVersion = "1.7.36"
 val assertjVersion = "3.8.0"
 val kotestVersion = "4.6.3"
 val esTransportVersion = "0.0.9"
@@ -43,11 +44,14 @@ val argparserVersion = "2.0.7"
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinCoroutinesVersion")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-slf4j:$kotlinCoroutinesVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinSerializationVersion")
     implementation("org.apache.kafka:connect-api:$kafkaVersion")
     implementation("org.apache.kafka:connect-runtime:$kafkaVersion")
     implementation("com.google.protobuf:protobuf-java:$protobufVersion")
     implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
+    implementation("org.slf4j:slf4j-api:$slf4jVersion")
+    implementation("org.slf4j:slf4j-ext:$slf4jVersion")
 
     api("dev.evo.elasticart:elasticart-elasticsearch-transport:$esTransportVersion")
     implementation("dev.evo.prometheus:prometheus-kt-ktor:$prometheusKtVersion")

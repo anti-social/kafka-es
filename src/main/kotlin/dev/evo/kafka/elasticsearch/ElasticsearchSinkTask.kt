@@ -19,6 +19,7 @@ import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
+import org.slf4j.NDC
 
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
@@ -85,7 +86,8 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun start(props: MutableMap<String, String>) {
-        logger.debug("[$name] Starting")
+        NDC.push(name)
+        logger.debug("Starting")
 
         try {
             val config = Config(props)
@@ -108,7 +110,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 esTestTransport
             } else {
                 val esUrl = config.getList(Config.CONNECTION_URL)
-                logger.info("[$name] Initializing Elasticsearch client for cluster: $esUrl")
+                logger.info("Initializing Elasticsearch client for cluster: $esUrl")
                 // TODO: Mutliple endpoint urls
                 ElasticsearchKtorTransport(esUrl[0], CIO.create {}) {
                     gzipRequests = config.getBoolean(Config.COMPRESSION_ENABLED)
@@ -122,13 +124,14 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun stop() {
-        logger.info("[$name] Stopping")
+        logger.info("Stopping")
 
         cancel()
+        NDC.pop()
     }
 
     override fun open(partitions: MutableCollection<TopicPartition>) {
-        logger.info("[$name] Opening")
+        logger.info("Opening")
 
         lastFlushResult = ElasticsearchSink.FlushResult.Ok
         processedRecords = 0
@@ -160,7 +163,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun close(partitions: MutableCollection<TopicPartition>) {
-        logger.info("[$name] Closing")
+        logger.info("Closing")
 
         coroutineContext.job.cancelChildren()
         runBlocking {
@@ -179,7 +182,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         }
 
         if (records.isNotEmpty()) {
-            logger.debug("[$name] Received ${records.size} records")
+            logger.debug("Received ${records.size} records")
         }
 
         val actions = preprocessRecords(records)
@@ -229,7 +232,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     override fun preCommit(
         currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
     ): MutableMap<TopicPartition, OffsetAndMetadata> {
-        logger.debug("[$name] Committing")
+        logger.debug("Committing")
 
         val flushResult = runBlocking {
             sink.flush(flushTimeoutMs, lastFlushResult)
@@ -241,7 +244,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         resume()
 
         if (processedRecords > 0) {
-            logger.info("[$name] Processed $processedRecords records")
+            logger.info("Processed $processedRecords records")
         }
         processedRecords = 0
         return super.preCommit(currentOffsets)
@@ -255,7 +258,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         }
         lastFlushResult = flushResult
         context.pause(*context.assignment().toTypedArray())
-        logger.info("[$name] Paused consuming new records")
+        logger.info("Paused consuming new records")
     }
 
     private fun resume() {
@@ -264,6 +267,6 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         }
         lastFlushResult = ElasticsearchSink.FlushResult.Ok
         context.resume(*context.assignment().toTypedArray())
-        logger.info("[$name] Resumed consuming new records")
+        logger.info("Resumed consuming new records")
     }
 }

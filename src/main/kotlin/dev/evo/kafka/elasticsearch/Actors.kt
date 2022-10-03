@@ -8,10 +8,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.channels.receiveOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.slf4j.MDCContext
 
 /**
  * Sink message with some data.
@@ -48,7 +48,7 @@ class RoutingActor<T>(
         require(outChannels.isNotEmpty())
     }
 
-    private val job = scope.launch {
+    private val job = scope.launch(MDCContext()) {
         while (true) {
             when (val msg = inChannel.receiveCatching().getOrNull()) {
                 is SinkMsg.Data -> {
@@ -91,7 +91,8 @@ class RoutingActor<T>(
 }
 
 /**
- * Bulk actor takes messages from an input channel groups them and sends into an output channel.
+ * Bulk actor takes messages from an input channel, groups them into chunks and
+ * sends those chunks into an output channel.
  *
  * @param scope a [CoroutineScope] to launch an actor
  * @param channel the input channel
@@ -110,7 +111,7 @@ class BulkActor<T>(
 ) {
     private var buffer = ArrayList<T>(bulkSize)
     private var firstMessageMark: TimeMark? = null
-    private val job = scope.launch {
+    private val job = scope.launch(MDCContext()) {
         while (true) {
             val timeoutMs = firstMessageMark.let { firstMessageMark ->
                 if (firstMessageMark == null || buffer.isEmpty()) {
@@ -206,7 +207,7 @@ class BulkSinkActor<T, R>(
     private val metrics: KafkaEsMetrics? = null,
     clock: TimeSource = TimeSource.Monotonic,
 ) {
-    val job = scope.launch {
+    val job = scope.launch(MDCContext()) {
         var lastProcessTimeMark = clock.markNow()
         while (true) {
             when (val msg = channel.receiveCatching().getOrNull()) {
