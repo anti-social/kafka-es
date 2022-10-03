@@ -81,6 +81,7 @@ protobuf {
 tasks {
     val test by getting(Test::class) {
         useJUnitPlatform()
+        outputs.upToDateWhen { false }
     }
     val jacocoTestReport by getting(JacocoReport::class) {
         reports {

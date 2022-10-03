@@ -55,7 +55,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private var esTestTransport: ElasticsearchTransport? = null
     private lateinit var esTransport: ElasticsearchTransport
 
-    private var name: String = "unknown"
+    private lateinit var name: String
     private var index: String? = null
     private var topicToIndexMap = emptyMap<String, String>()
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
@@ -86,12 +86,13 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun start(props: MutableMap<String, String>) {
-        NDC.push(name)
-        logger.debug("Starting")
-
         try {
             val config = Config(props)
             name = config.getString(ConnectorConfig.NAME_CONFIG)
+
+            NDC.push(name)
+            logger.debug("Starting")
+
             index = config.getString(Config.INDEX)
             topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
             // 90% from the offset commit timeout
