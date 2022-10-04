@@ -231,7 +231,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     }
 
     override fun preCommit(
-        currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>?
+        currentOffsets: MutableMap<TopicPartition, OffsetAndMetadata>
     ): MutableMap<TopicPartition, OffsetAndMetadata> {
         logger.debug("Committing")
 
@@ -245,7 +245,8 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         resume()
 
         if (processedRecords > 0) {
-            logger.info("Processed $processedRecords records")
+            val logOffsets = currentOffsets.mapValues { it.value.offset() }
+            logger.info("Processed $processedRecords records; committing offsets $logOffsets")
         }
         processedRecords = 0
         return super.preCommit(currentOffsets)
