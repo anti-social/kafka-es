@@ -1,7 +1,8 @@
 package dev.evo.kafka.elasticsearch
 
-import dev.evo.elasticart.transport.ElasticsearchKtorTransport
-import dev.evo.elasticart.transport.ElasticsearchTransport
+import dev.evo.elasticmagic.serde.serialization.JsonSerde
+import dev.evo.elasticmagic.transport.ElasticsearchKtorTransport
+import dev.evo.elasticmagic.transport.ElasticsearchTransport
 
 import dev.evo.kafka.castOrFail
 
@@ -124,7 +125,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 val esUrl = config.getList(Config.CONNECTION_URL)
                 logger.info("Initializing Elasticsearch client for cluster: $esUrl")
                 // TODO: Mutliple endpoint urls
-                ElasticsearchKtorTransport(esUrl[0], CIO.create {}) {
+                ElasticsearchKtorTransport(esUrl[0], JsonSerde, CIO.create {}) {
                     gzipRequests = config.getBoolean(Config.COMPRESSION_ENABLED)
                 }
             }

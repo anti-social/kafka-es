@@ -11,12 +11,12 @@ object Versions {
     // Libraries
     const val kafka = "3.3.1"
     const val protobuf = "3.19.1"
+    const val elasticmagic = "0.0.15"
     const val ktor = "2.1.2"
     const val slf4j = "1.7.36"
 
     // Tests
     val kotest = "5.5.1"
-    val esTransport = "0.0.9"
 
     // Runner
     const val argparser = "2.0.7"

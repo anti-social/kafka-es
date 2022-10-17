@@ -1,8 +1,8 @@
 package dev.evo.kafka.elasticsearch
 
-import dev.evo.elasticart.transport.ElasticsearchException
-import dev.evo.elasticart.transport.ElasticsearchTransport
-import dev.evo.elasticart.transport.Method
+import dev.evo.elasticmagic.transport.ElasticsearchException
+import dev.evo.elasticmagic.transport.ElasticsearchTransport
+import dev.evo.elasticmagic.transport.Method
 
 import java.io.IOException
 
@@ -108,27 +108,24 @@ class ElasticsearchBulkSender(
         refresh: Boolean = false,
     ): SendBulkResult<BulkAction, BulkActionResult> {
         try {
-            val (response, totalTime) = withTimeout(requestTimeoutMs) {
+            val (bulkResult, totalTime) = withTimeout(requestTimeoutMs) {
                 logger.debug("Sending ${bulk.size} action ")
                 val params = if (refresh) {
                     mapOf("refresh" to listOf("true"))
                 } else {
-                    null
+                    emptyMap()
                 }
                 clock.measureTimedValue {
                     esTransport.request(
-                        Method.POST,
-                        "/_bulk",
-                        parameters = params,
-                        contentType = "application/x-ndjson",
-                    ) {
-                        for (action in bulk) {
-                            action.write(this)
-                        }
-                    }
+                        BulkRequest(
+                            Method.POST,
+                            "/_bulk",
+                            parameters = params,
+                            body = bulk,
+                        )
+                    )
                 }
             }
-            val bulkResult = Json.decodeFromString(JsonElement.serializer(), response).jsonObject
             val itemsResult = requireNotNull(
                 bulkResult["items"]?.jsonArray
             )

@@ -25,6 +25,8 @@ val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
     ?: "v0.0.0-unknown"
 version = gitDescribe.trimStart('v')
 
+val javaVersion = Versions.java.toString()
+
 allprojects {
     group = rootProject.group
     version = rootProject.version
@@ -39,10 +41,14 @@ allprojects {
         mavenCentral()
     }
 
+    tasks.withType(JavaCompile::class.java) {
+        sourceCompatibility = javaVersion
+        targetCompatibility = javaVersion
+    }
+
     signing {
         sign(publishing.publications)
     }
-
 
     val jar by tasks.getting(Jar::class)
 
@@ -133,7 +139,8 @@ dependencies {
     implementation("org.slf4j:slf4j-api:${Versions.slf4j}")
     implementation("org.slf4j:slf4j-ext:${Versions.slf4j}")
 
-    implementation("dev.evo.elasticart:elasticart-elasticsearch-transport:${Versions.esTransport}")
+    implementation("dev.evo.elasticmagic:elasticmagic-transport-ktor:${Versions.elasticmagic}")
+    implementation("dev.evo.elasticmagic:elasticmagic-serde-serialization-json:${Versions.elasticmagic}")
     implementation("io.ktor:ktor-client-cio:${Versions.ktor}")
 
     testImplementation("io.kotest:kotest-runner-junit5:${Versions.kotest}")
@@ -170,12 +177,6 @@ sourceSets["test"].java {
     )
 }
 
-val javaVersion = Versions.java.toString()
-
-tasks.withType(JavaCompile::class.java) {
-    sourceCompatibility = javaVersion
-    targetCompatibility = javaVersion
-}
 tasks.withType(KotlinCompile::class.java) {
     kotlinOptions {
         jvmTarget = javaVersion

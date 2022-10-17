@@ -1,11 +1,12 @@
 package dev.evo.kafka.elasticsearch
 
-import dev.evo.elasticart.transport.ElasticsearchTransport
-import dev.evo.elasticart.transport.Method
-import dev.evo.elasticart.transport.RequestBodyBuilder
-import dev.evo.elasticart.transport.StringEncoder
-import io.kotest.assertions.throwables.shouldThrow
+import dev.evo.elasticmagic.serde.serialization.JsonSerde
+import dev.evo.elasticmagic.transport.ElasticsearchTransport
+import dev.evo.elasticmagic.transport.Method
+import dev.evo.elasticmagic.transport.RequestBodyBuilder
+import dev.evo.elasticmagic.transport.StringEncoder
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -27,7 +28,7 @@ import kotlinx.serialization.json.put
 
 class ElasticsearchMockTransport(
     private val check: suspend RequestContext.() -> Unit,
-) : ElasticsearchTransport("http://example.com:9200", Config()) {
+) : ElasticsearchTransport("http://example.com:9200", JsonSerde, Config()) {
     class RequestContext(
         val method: Method,
         val path: String,
@@ -42,7 +43,7 @@ class ElasticsearchMockTransport(
         }
     }
 
-    override suspend fun request(
+    override suspend fun doRequest(
         method: Method,
         path: String,
         parameters: Map<String, List<String>>?,
@@ -82,7 +83,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
         val sender = ElasticsearchBulkSender(
             ElasticsearchMockTransport {
                 method shouldBe Method.POST
-                parameters shouldBe null
+                parameters shouldBe emptyMap()
                 path shouldBe "/_bulk"
                 contentType shouldBe "application/x-ndjson"
                 body shouldBe """
@@ -110,7 +111,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
         val sender = ElasticsearchBulkSender(
             ElasticsearchMockTransport {
                 method shouldBe Method.POST
-                parameters shouldBe null
+                parameters shouldBe emptyMap()
                 path shouldBe "/_bulk"
                 contentType shouldBe "application/x-ndjson"
                 body shouldBe """
@@ -171,7 +172,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
         val sender = ElasticsearchBulkSender(
             ElasticsearchMockTransport {
                 method shouldBe Method.POST
-                parameters shouldBe null
+                parameters shouldBe emptyMap()
                 path shouldBe "/_bulk"
                 contentType shouldBe "application/x-ndjson"
                 body shouldBe """
@@ -210,7 +211,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
         val sender = ElasticsearchBulkSender(
             ElasticsearchMockTransport {
                 method shouldBe Method.POST
-                parameters shouldBe null
+                parameters shouldBe emptyMap()
                 path shouldBe "/_bulk"
                 contentType shouldBe "application/x-ndjson"
                 body shouldBe """
