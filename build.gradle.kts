@@ -66,7 +66,7 @@ allprojects {
                 artifact(javadocJar)
 
                 pom {
-                    name.set("kafka-es")
+                    name.set(project.name)
                     description.set("Kafka connect elasticsearch sink")
                     url.set("https://github.com/anti-social/kafka-es")
 
