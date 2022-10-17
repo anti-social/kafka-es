@@ -38,8 +38,10 @@ import kotlinx.coroutines.runBlocking
  * Sink task lifecycle:
  * - initialize
  * - start
- * - open
- * - close
+ * - open -------+ close and reopen when rebalancing
+ *  - put*       |
+ *  - preCommit  |
+ * - close ------+
  * - stop
  */
 class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
