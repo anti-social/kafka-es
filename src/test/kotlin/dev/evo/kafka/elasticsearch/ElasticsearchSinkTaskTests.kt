@@ -2,6 +2,8 @@ package dev.evo.kafka.elasticsearch
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 import kotlinx.coroutines.test.runBlockingTest
 
@@ -56,11 +58,14 @@ class ElasticsearchSinkTaskTests : StringSpec({
         }
     }
 
-    "multiple concurrent requests" {
+    "multiple concurrent requests".config(invocations = 1000) {
         runBlockingTest {
             val sentBodies = mutableSetOf<String>()
+            val lock = Mutex()
             val esTransport = ElasticsearchMockTransport {
-                sentBodies.add(body!!)
+                lock.withLock {
+                    sentBodies.add(body!!)
+                }
             }
             ElasticsearchSinkTask(esTransport).startWith(
                 mutableMapOf(
