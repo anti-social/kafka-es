@@ -20,10 +20,8 @@ import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
 
 import org.slf4j.LoggerFactory
+import org.slf4j.MDC
 import org.slf4j.NDC
-
-import kotlin.coroutines.CoroutineContext
-import kotlin.random.Random
 
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelChildren
@@ -35,6 +33,10 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.slf4j.MDCContext
+
+import kotlin.coroutines.CoroutineContext
+import kotlin.random.Random
+
 
 /**
  * Sink task lifecycle:
@@ -123,6 +125,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 esTestTransport
             } else {
                 val esUrl = config.getList(Config.CONNECTION_URL)
+                MDC.put("es_url", esUrl.joinToString(",", prefix = "[", postfix = "]"))
                 logger.info("Initializing Elasticsearch client for cluster: $esUrl")
                 // TODO: Mutliple endpoint urls
                 ElasticsearchKtorTransport(esUrl[0], JsonSerde, CIO.create {}) {
