@@ -15,7 +15,7 @@ object Versions {
     const val slf4j = "1.7.36"
 
     // Tests
-    val kotest = "4.6.3"
+    val kotest = "5.5.1"
     val esTransport = "0.0.9"
 
     // Runner

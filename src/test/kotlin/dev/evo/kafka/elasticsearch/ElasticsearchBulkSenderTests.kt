@@ -106,106 +106,102 @@ class ElasticsearchBulkSenderTests : StringSpec({
     }
 
     "test retriable failed actions" {
-        runTest {
-            val clock = TestTimeSource()
-            val sender = ElasticsearchBulkSender(
-                ElasticsearchMockTransport {
-                    method shouldBe Method.POST
-                    parameters shouldBe null
-                    path shouldBe "/_bulk"
-                    contentType shouldBe "application/x-ndjson"
-                    body shouldBe """
-                        |{"index":{"_id":"1","_type":"_doc","_index":"test","routing":"2"}}
-                        |{"name":"Test json","keyword":null}
-                        |{"delete":{"_id":"2","_type":"_doc","_index":"test"}}
-                        |""".trimMargin()
+        val clock = TestTimeSource()
+        val sender = ElasticsearchBulkSender(
+            ElasticsearchMockTransport {
+                method shouldBe Method.POST
+                parameters shouldBe null
+                path shouldBe "/_bulk"
+                contentType shouldBe "application/x-ndjson"
+                body shouldBe """
+                    |{"index":{"_id":"1","_type":"_doc","_index":"test","routing":"2"}}
+                    |{"name":"Test json","keyword":null}
+                    |{"delete":{"_id":"2","_type":"_doc","_index":"test"}}
+                    |""".trimMargin()
 
-                    respond("""
-                        |{"took": 99, "errors": true, "items": [
-                        |    {"index": {"_id": "1", "_type": "_doc", "_index": "test", "result": "created", "status": 201}},    
-                        |    {"delete": {"_id": "2", "_type": "_doc", "_index": "test", "status": 404, "error": {
-                        |        "type": "document_missing_exception",
-                        |        "reason": "[_doc][6]: document missing"
-                        |    }}}
-                        |]}""".trimMargin())
-                },
-                requestTimeoutMs = 10_000,
-                clock = clock,
-            )
+                respond("""
+                    |{"took": 99, "errors": true, "items": [
+                    |    {"index": {"_id": "1", "_type": "_doc", "_index": "test", "result": "created", "status": 201}},    
+                    |    {"delete": {"_id": "2", "_type": "_doc", "_index": "test", "status": 404, "error": {
+                    |        "type": "document_missing_exception",
+                    |        "reason": "[_doc][6]: document missing"
+                    |    }}}
+                    |]}""".trimMargin())
+            },
+            requestTimeoutMs = 10_000,
+            clock = clock,
+        )
 
-            val failedAction = BulkAction.Delete(
+        val failedAction = BulkAction.Delete(
+            id = "2",
+            type = "_doc",
+            index = "test",
+        )
+        val result = sender.sendBulk(listOf(
+            jsonIndexAction,
+            failedAction,
+        ))
+        result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction, BulkActionResult>>()
+        result.tookTimeMs shouldBe 99
+        result.successActionsCount shouldBe 1
+        result.items shouldBe listOf(
+            BulkActionResult(
+                id = "1",
+                type = "_doc",
+                index = "test",
+                status = 201,
+                error = null,
+            ),
+            BulkActionResult(
                 id = "2",
                 type = "_doc",
                 index = "test",
-            )
-            val result = sender.sendBulk(listOf(
-                jsonIndexAction,
-                failedAction,
-            ))
-            result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction, BulkActionResult>>()
-            result.tookTimeMs shouldBe 99
-            result.successActionsCount shouldBe 1
-            result.items shouldBe listOf(
-                BulkActionResult(
-                    id = "1",
-                    type = "_doc",
-                    index = "test",
-                    status = 201,
-                    error = null,
+                status = 404,
+                error = BulkActionError.WithType(
+                    type = "document_missing_exception",
+                    reason = "[_doc][6]: document missing",
                 ),
-                BulkActionResult(
-                    id = "2",
-                    type = "_doc",
-                    index = "test",
-                    status = 404,
-                    error = BulkActionError.WithType(
-                        type = "document_missing_exception",
-                        reason = "[_doc][6]: document missing",
-                    ),
-                )
             )
-            result.retryActions shouldBe listOf(failedAction)
-        }
+        )
+        result.retryActions shouldBe listOf(failedAction)
     }
 
     "test non-retriable failed actions" {
-        runTest {
-            val clock = TestTimeSource()
-            val sender = ElasticsearchBulkSender(
-                ElasticsearchMockTransport {
-                    method shouldBe Method.POST
-                    parameters shouldBe null
-                    path shouldBe "/_bulk"
-                    contentType shouldBe "application/x-ndjson"
-                    body shouldBe """
-                        |{"index":{"_id":"1","_type":"_doc","_index":"test","routing":"2"}}
-                        |{"name":"Test json","keyword":null}
-                        |{"delete":{"_id":"2","_type":"_doc","_index":"test"}}
-                        |""".trimMargin()
+        val clock = TestTimeSource()
+        val sender = ElasticsearchBulkSender(
+            ElasticsearchMockTransport {
+                method shouldBe Method.POST
+                parameters shouldBe null
+                path shouldBe "/_bulk"
+                contentType shouldBe "application/x-ndjson"
+                body shouldBe """
+                    |{"index":{"_id":"1","_type":"_doc","_index":"test","routing":"2"}}
+                    |{"name":"Test json","keyword":null}
+                    |{"delete":{"_id":"2","_type":"_doc","_index":"test"}}
+                    |""".trimMargin()
 
-                    respond("""
-                        |{"took": 99, "errors": true, "items": [
-                        |    {"index": {"_id": "1", "result": "created", "status": 201}},    
-                        |    {"delete": {"_id": "2", "status": 404, "error": {
-                        |        "type": "routing_missing_exception"
-                        |    }}}
-                        |]}""".trimMargin())
-                },
-                requestTimeoutMs = 10_000,
-                clock = clock,
-            )
+                respond("""
+                    |{"took": 99, "errors": true, "items": [
+                    |    {"index": {"_id": "1", "result": "created", "status": 201}},    
+                    |    {"delete": {"_id": "2", "status": 404, "error": {
+                    |        "type": "routing_missing_exception"
+                    |    }}}
+                    |]}""".trimMargin())
+            },
+            requestTimeoutMs = 10_000,
+            clock = clock,
+        )
 
-            val failedAction = BulkAction.Delete(
-                id = "2",
-                type = "_doc",
-                index = "test",
-            )
-            shouldThrow<ElasticsearchNonRetriableBulkError> {
-                sender.sendBulk(listOf(
-                    jsonIndexAction,
-                    failedAction,
-                ))
-            }
+        val failedAction = BulkAction.Delete(
+            id = "2",
+            type = "_doc",
+            index = "test",
+        )
+        shouldThrow<ElasticsearchNonRetriableBulkError> {
+            sender.sendBulk(listOf(
+                jsonIndexAction,
+                failedAction,
+            ))
         }
     }
 
@@ -271,18 +267,16 @@ class ElasticsearchBulkSenderTests : StringSpec({
     }
 
     "test io error" {
-        runTest {
-            val clock = TestTimeSource()
-            val sender = ElasticsearchBulkSender(
-                ElasticsearchMockTransport {
-                    throw IOException()
-                },
-                requestTimeoutMs = 10_000,
-                clock = clock,
-            )
+        val clock = TestTimeSource()
+        val sender = ElasticsearchBulkSender(
+            ElasticsearchMockTransport {
+                throw IOException()
+            },
+            requestTimeoutMs = 10_000,
+            clock = clock,
+        )
 
-            val result = sender.sendBulk(listOf(jsonIndexAction))
-            result.shouldBeInstanceOf<SendBulkResult.IOError>()
-        }
+        val result = sender.sendBulk(listOf(jsonIndexAction))
+        result.shouldBeInstanceOf<SendBulkResult.IOError>()
     }
 })
