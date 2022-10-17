@@ -11,7 +11,7 @@ object Versions {
     // Libraries
     const val kafka = "3.3.1"
     const val protobuf = "3.19.1"
-    const val ktor = "1.6.4"
+    const val ktor = "2.1.2"
     const val slf4j = "1.7.36"
 
     // Tests
@@ -20,5 +20,5 @@ object Versions {
 
     // Runner
     const val argparser = "2.0.7"
-    const val prometheusKt = "0.1.3"
+    const val prometheusKt = "0.2.0"
 }
