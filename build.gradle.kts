@@ -30,7 +30,7 @@ val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
         ?: "v0.0.0-unknown"
 version = gitDescribe.trimStart('v')
 
-val kotlinCoroutinesVersion = "1.5.2"
+val kotlinCoroutinesVersion = "1.6.4"
 val kotlinSerializationVersion = "1.4.1"
 val kafkaVersion = "3.3.1"
 val protobufVersion = "3.19.1"

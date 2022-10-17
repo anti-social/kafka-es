@@ -13,11 +13,13 @@ import kotlin.time.toDuration
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 
-class ReoutingActorTests : StringSpec({
+class RoutingActorTests : StringSpec({
     "routing" {
-        runBlockingTest {
+        runTest(UnconfinedTestDispatcher()) {
             val inChannel = Channel<SinkMsg<Int>>(Channel.RENDEZVOUS)
             val outChannels = Array(3) {
                 Channel<SinkMsg<Int>>(Channel.UNLIMITED)
@@ -47,7 +49,7 @@ class ReoutingActorTests : StringSpec({
 
 class BulkActorTests : StringSpec({
     "bulk actor: no max delay" {
-        runBlockingTest {
+        runTest(UnconfinedTestDispatcher()) {
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val bulker = BulkActor(
@@ -83,7 +85,7 @@ class BulkActorTests : StringSpec({
     }
 
     "bulk actor: with max delay" {
-        runBlockingTest {
+        runTest(UnconfinedTestDispatcher()) {
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val clock = TestTimeSource()
@@ -111,7 +113,7 @@ class BulkActorTests : StringSpec({
                 bulkChannel.tryReceive().getOrNull() shouldBe null
 
                 clock += 1.toDuration(DurationUnit.MILLISECONDS)
-                advanceTimeBy(1)
+                advanceTimeBy(2)
                 bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 2))
             } finally {
                 bulker.cancel()
@@ -122,7 +124,7 @@ class BulkActorTests : StringSpec({
     }
 
     "bulk actor: with max delay after flush by size" {
-        runBlockingTest {
+        runTest(UnconfinedTestDispatcher()) {
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val clock = TestTimeSource()
@@ -136,6 +138,7 @@ class BulkActorTests : StringSpec({
             )
 
             try {
+                // Initial delay should be ignored
                 clock += 8.toDuration(DurationUnit.MILLISECONDS)
                 advanceTimeBy(8)
                 channel.send(SinkMsg.Data(listOf(1)))
@@ -152,7 +155,7 @@ class BulkActorTests : StringSpec({
                 bulkChannel.tryReceive().getOrNull() shouldBe null
 
                 clock += 1.toDuration(DurationUnit.MILLISECONDS)
-                advanceTimeBy(1)
+                advanceTimeBy(2)
                 bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(4))
             } finally {
                 bulker.cancel()
@@ -165,7 +168,7 @@ class BulkActorTests : StringSpec({
 
 class BulkSinkActorTests : StringSpec({
     "retry on error" {
-        runBlockingTest {
+        runTest {
             val channel = Channel<SinkMsg<Unit>>()
             var retries = 0
             val sink = BulkSinkActor(
@@ -198,7 +201,7 @@ class BulkSinkActorTests : StringSpec({
                 advanceTimeBy(14_000)
                 flushed.isReleased shouldBe false
 
-                advanceTimeBy(1_000)
+                advanceTimeBy(1_001)
                 flushed.isReleased shouldBe true
             } finally {
                 sink.cancel()
@@ -208,7 +211,7 @@ class BulkSinkActorTests : StringSpec({
     }
 
     "retry on timeout" {
-        runBlockingTest {
+        runTest {
             val channel = Channel<SinkMsg<Unit>>()
             var retries = 0
             val sink = BulkSinkActor(
@@ -251,7 +254,7 @@ class BulkSinkActorTests : StringSpec({
                 advanceTimeBy(15_000)
                 flushed.isReleased shouldBe false
 
-                advanceTimeBy(1_000)
+                advanceTimeBy(1_001)
                 flushed.isReleased shouldBe true
             } finally {
                 sink.cancel()
@@ -261,7 +264,7 @@ class BulkSinkActorTests : StringSpec({
     }
 
     "retry partially" {
-        runBlockingTest {
+        runTest {
             val channel = Channel<SinkMsg<Int>>()
             var retries = 0
             val sink = BulkSinkActor(
@@ -298,7 +301,7 @@ class BulkSinkActorTests : StringSpec({
                 advanceTimeBy(1_000)
                 flushed.isReleased shouldBe false
 
-                advanceTimeBy(14_000)
+                advanceTimeBy(14_001)
                 flushed.isReleased shouldBe true
             } finally {
                 sink.cancel()

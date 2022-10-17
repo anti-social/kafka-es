@@ -11,15 +11,15 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 
 import java.io.IOException
-import kotlin.time.Duration
-import kotlin.time.DurationUnit
 
+import kotlin.time.DurationUnit
 import kotlin.time.TestTimeSource
 import kotlin.time.toDuration
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
@@ -106,7 +106,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
     }
 
     "test retriable failed actions" {
-        runBlockingTest {
+        runTest {
             val clock = TestTimeSource()
             val sender = ElasticsearchBulkSender(
                 ElasticsearchMockTransport {
@@ -169,7 +169,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
     }
 
     "test non-retriable failed actions" {
-        runBlockingTest {
+        runTest {
             val clock = TestTimeSource()
             val sender = ElasticsearchBulkSender(
                 ElasticsearchMockTransport {
@@ -250,7 +250,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
     }
 
     "test timeout" {
-        runBlockingTest {
+        runTest {
             val clock = TestTimeSource()
             val sender = ElasticsearchBulkSender(
                 ElasticsearchMockTransport {
@@ -271,7 +271,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
     }
 
     "test io error" {
-        runBlockingTest {
+        runTest {
             val clock = TestTimeSource()
             val sender = ElasticsearchBulkSender(
                 ElasticsearchMockTransport {
