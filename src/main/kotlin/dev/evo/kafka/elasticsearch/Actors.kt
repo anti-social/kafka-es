@@ -11,7 +11,6 @@ import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.slf4j.MDCContext
 
 /**
  * Sink message with some data.
@@ -48,7 +47,7 @@ class RoutingActor<T>(
         require(outChannels.isNotEmpty())
     }
 
-    private val job = scope.launch(MDCContext()) {
+    private val job = scope.launch {
         while (true) {
             when (val msg = inChannel.receiveCatching().getOrNull()) {
                 is SinkMsg.Data -> {
@@ -111,7 +110,7 @@ class BulkActor<T>(
 ) {
     private var buffer = ArrayList<T>(bulkSize)
     private var firstMessageMark: TimeMark? = null
-    private val job = scope.launch(MDCContext()) {
+    private val job = scope.launch {
         while (true) {
             val timeoutMs = firstMessageMark.let { firstMessageMark ->
                 if (firstMessageMark == null || buffer.isEmpty()) {
@@ -207,7 +206,7 @@ class BulkSinkActor<T, R>(
     private val metricsUpdater: MetricsUpdater? = null,
     clock: TimeSource = TimeSource.Monotonic,
 ) {
-    val job = scope.launch(MDCContext()) {
+    val job = scope.launch {
         var lastProcessTimeMark = clock.markNow()
         while (true) {
             when (val msg = channel.receiveCatching().getOrNull()) {

@@ -33,6 +33,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.slf4j.MDCContext
 
 /**
  * Sink task lifecycle:
@@ -45,12 +46,14 @@ import kotlinx.coroutines.runBlocking
  * - stop
  */
 class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
-    override val coroutineContext: CoroutineContext =
-        Job() + Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
-            throwable.printStackTrace()
-            lastException.set(throwable)
-        }
+    private val job = Job()
     private val lastException = AtomicReference<Throwable>()
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        throwable.printStackTrace()
+        lastException.set(throwable)
+    }
+    override val coroutineContext: CoroutineContext get() =
+        job + Dispatchers.Default + MDCContext() + exceptionHandler
 
     private var esTestTransport: ElasticsearchTransport? = null
     private lateinit var esTransport: ElasticsearchTransport
