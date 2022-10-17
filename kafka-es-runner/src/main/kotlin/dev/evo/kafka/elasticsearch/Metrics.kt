@@ -11,9 +11,13 @@ object Metrics : PrometheusMetrics() {
 
 class KafkaEsLabels : LabelSet() {
     var connectorName by label("connector_name")
+
+    fun populate(connectorName: String) {
+        this.connectorName = connectorName
+    }
 }
 
-class KafkaEsMetrics : PrometheusMetrics() {
+class KafkaEsMetrics : PrometheusMetrics(), MetricsUpdater {
     val bulksCount by counterLong(
         "bulk_requests_count",
         "Number of bulk requests successfully sent to Elasticsearch",
@@ -44,4 +48,19 @@ class KafkaEsMetrics : PrometheusMetrics() {
         "Number of timed out bulk requests",
         labelsFactory = ::KafkaEsLabels,
     )
+
+    override suspend fun onSuccess(connectorName: String, sendBulkResult: SendBulkResult.Success<*, *>) {
+        bulksCount.inc { populate(connectorName) }
+        bulksTotalTime.add(sendBulkResult.totalTimeMs) { populate(connectorName) }
+        bulksTookTime.add(sendBulkResult.tookTimeMs) { populate(connectorName) }
+        bulkActionsCount.add(sendBulkResult.successActionsCount) { populate(connectorName) }
+    }
+
+    override suspend fun onError(connectorName: String) {
+        bulksErrorCount.inc { populate(connectorName) }
+    }
+
+    override suspend fun onTimeout(connectorName: String) {
+        bulksTimeoutCount.inc { populate(connectorName) }
+    }
 }

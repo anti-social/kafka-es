@@ -42,8 +42,6 @@ import kotlinx.coroutines.runBlocking
  * - close
  * - stop
  */
-@kotlin.time.ExperimentalTime
-@kotlinx.coroutines.ExperimentalCoroutinesApi
 class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     override val coroutineContext: CoroutineContext =
         Job() + Dispatchers.Default + CoroutineExceptionHandler { _, throwable ->
@@ -79,6 +77,14 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         private val logger = LoggerFactory.getLogger(ElasticsearchSinkTask::class.java)
 
         private val EMPTY_OFFSETS: MutableMap<TopicPartition, OffsetAndMetadata> = HashMap()
+
+        private val metricsUpdater: AtomicReference<MetricsUpdater> = AtomicReference()
+
+        fun installMetrics(metricsUpdater: MetricsUpdater) {
+            if (!this@Companion.metricsUpdater.compareAndSet(null, metricsUpdater)) {
+                throw IllegalStateException("Metrics have already been installed")
+            }
+        }
     }
 
     internal constructor(esTestTransport: ElasticsearchTransport) : this() {
@@ -157,7 +163,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                     delayBetweenRequestsMs = delayBetweenRequestsMs,
                     minRetryDelayMs = retryIntervalMs,
                     maxRetryDelayMs = maxRetryIntervalMs,
-                    metrics = Metrics.kafkaEsMetrics,
+                    metricsUpdater = metricsUpdater.get(),
                 ).job
             }
         )

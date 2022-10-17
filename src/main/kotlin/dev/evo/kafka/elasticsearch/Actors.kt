@@ -204,7 +204,7 @@ class BulkSinkActor<T, R>(
     private val minRetryDelayMs: Long,
     private val maxRetryDelayMs: Long,
     delayBetweenRequestsMs: Long = 0,
-    private val metrics: KafkaEsMetrics? = null,
+    private val metricsUpdater: MetricsUpdater? = null,
     clock: TimeSource = TimeSource.Monotonic,
 ) {
     val job = scope.launch(MDCContext()) {
@@ -224,29 +224,20 @@ class BulkSinkActor<T, R>(
         }
     }
 
-    private fun setLabels(labels: KafkaEsLabels) = labels.apply {
-        connectorName = this@BulkSinkActor.connectorName
-    }
-
     private suspend fun process(bulk: List<T>) {
         var retryDelayMs = minRetryDelayMs
         while (true) {
             val retryActions = when (val sendResult = sendBulk(bulk)) {
                 is SendBulkResult.Success<*, *> -> {
-                    metrics?.let { metrics ->
-                        metrics.bulksCount.inc(::setLabels)
-                        metrics.bulksTotalTime.add(sendResult.totalTimeMs, ::setLabels)
-                        metrics.bulksTookTime.add(sendResult.tookTimeMs, ::setLabels)
-                        metrics.bulkActionsCount.add(sendResult.successActionsCount, ::setLabels)
-                    }
+                    metricsUpdater?.onSuccess(connectorName, sendResult)
                     sendResult.retryActions
                 }
                 is SendBulkResult.IOError -> {
-                    metrics?.bulksErrorCount?.inc(::setLabels)
+                    metricsUpdater?.onError(connectorName)
                     bulk
                 }
                 SendBulkResult.Timeout -> {
-                    metrics?.bulksTimeoutCount?.inc(::setLabels)
+                    metricsUpdater?.onTimeout(connectorName)
                     bulk
                 }
             }

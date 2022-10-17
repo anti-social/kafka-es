@@ -8,73 +8,141 @@ import org.gradle.jvm.tasks.Jar
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    application
     java
     jacoco
-    `maven-publish`
     signing
+    `maven-publish`
+    kotlin("jvm") version Versions.kotlin
+    kotlin("plugin.serialization") version Versions.kotlin
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
-    id("org.jetbrains.kotlin.jvm") version "1.7.20"
-    kotlin("plugin.serialization") version "1.7.20"
     id("com.google.protobuf") version "0.8.17"
     id("org.ajoberstar.grgit") version "4.1.0"
-}
-
-repositories {
-    mavenCentral()
 }
 
 group = "dev.evo.kafka-es"
 
 val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
-        ?: "v0.0.0-unknown"
+    ?: "v0.0.0-unknown"
 version = gitDescribe.trimStart('v')
 
-val kotlinCoroutinesVersion = "1.6.4"
-val kotlinSerializationVersion = "1.4.1"
-val kafkaVersion = "3.3.1"
-val protobufVersion = "3.19.1"
-val slf4jVersion = "1.7.36"
-val assertjVersion = "3.8.0"
-val kotestVersion = "4.6.3"
-val esTransportVersion = "0.0.9"
-val prometheusKtVersion = "0.1.3"
-val ktorVersion = "1.6.4"
-val argparserVersion = "2.0.7"
+allprojects {
+    group = rootProject.group
+    version = rootProject.version
 
-dependencies {
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$kotlinCoroutinesVersion")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-slf4j:$kotlinCoroutinesVersion")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlinSerializationVersion")
-    implementation("org.apache.kafka:connect-api:$kafkaVersion")
-    implementation("org.apache.kafka:connect-runtime:$kafkaVersion")
-    implementation("com.google.protobuf:protobuf-java:$protobufVersion")
-    implementation("com.google.protobuf:protobuf-java-util:$protobufVersion")
-    implementation("org.slf4j:slf4j-api:$slf4jVersion")
-    implementation("org.slf4j:slf4j-ext:$slf4jVersion")
+    apply {
+        plugin("signing")
+        plugin("maven-publish")
+        plugin("org.jetbrains.kotlin.jvm")
+    }
 
-    api("dev.evo.elasticart:elasticart-elasticsearch-transport:$esTransportVersion")
-    implementation("dev.evo.prometheus:prometheus-kt-ktor:$prometheusKtVersion")
-    implementation("io.ktor:ktor-client-cio:$ktorVersion")
-    implementation("io.ktor:ktor-server-core:$ktorVersion")
-    implementation("io.ktor:ktor-server-netty:$ktorVersion")
+    repositories {
+        mavenCentral()
+    }
 
-    implementation("com.xenomachina:kotlin-argparser:$argparserVersion")
+    signing {
+        sign(publishing.publications)
+    }
 
-    testImplementation("io.kotest:kotest-runner-junit5:$kotestVersion")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:$kotlinCoroutinesVersion")
+
+    val jar by tasks.getting(Jar::class)
+
+    val sourceJar by tasks.creating(Jar::class) {
+        archiveClassifier.set("sources")
+        from(sourceSets["main"].allSource)
+    }
+
+    val javadocJar by tasks.registering(Jar::class) {
+        archiveClassifier.set("javadoc")
+    }
+
+    publishing {
+        publications {
+            create<MavenPublication>("jar") {
+                groupId = project.group.toString()
+                artifactId = project.name
+                version = project.version.toString()
+                from(components["java"])
+                artifact(sourceJar)
+                artifact(javadocJar)
+
+                pom {
+                    name.set("kafka-es")
+                    description.set("Kafka connect elasticsearch sink")
+                    url.set("https://github.com/anti-social/kafka-es")
+
+                    licenses {
+                        license {
+                            name.set("The Apache License, Version 2.0")
+                            url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                        }
+                    }
+
+                    scm {
+                        url.set("https://github.com/anti-social/kafka-es")
+                        connection.set("scm:https://github.com/anti-social/kafka-es.git")
+                        developerConnection.set("scm:git://github.com/anti-social/kafka-es.git")
+                    }
+
+                    developers {
+                        developer {
+                            id.set("anti-social")
+                            name.set("Oleksandr Koval")
+                            email.set("kovalidis@gmail.com")
+                        }
+                    }
+                }
+            }
+        }
+
+        repositories {
+            maven {
+                name = "test"
+                url = uri("file://${rootProject.buildDir}/repos/testMaven")
+            }
+
+            maven {
+                val gitlabRepoUrl = findProperty("gitlabRepoUrl")?.toString()
+                    ?: System.getenv("GITLAB_REPO_URL")
+                val gitlabToken = project.properties["gitlabToken"]?.toString()
+                    ?: System.getenv("GITLAB_TOKEN")
+
+                name = "gitlab"
+                if (gitlabRepoUrl != null) {
+                    url = uri(gitlabRepoUrl)
+                    credentials(HttpHeaderCredentials::class) {
+                        name = "Job-Token"
+                        value = gitlabToken
+                    }
+                    authentication {
+                        create<HttpHeaderAuthentication>("header")
+                    }
+                }
+            }
+        }
+    }
 }
 
-application {
-    mainClass.set("dev.evo.kafka.elasticsearch.MainKt")
-    applicationDefaultJvmArgs = listOf(
-        "-Dlog4j.configuration=file:config/connect-log4j.properties"
-    )
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${Versions.kotlinxCoroutines}")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-slf4j:${Versions.kotlinxCoroutines}")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:${Versions.kotlinxSerialization}")
+    implementation("org.apache.kafka:connect-api:${Versions.kafka}")
+    implementation("org.apache.kafka:connect-runtime:${Versions.kafka}")
+    implementation("com.google.protobuf:protobuf-java:${Versions.protobuf}")
+    implementation("com.google.protobuf:protobuf-java-util:${Versions.protobuf}")
+    implementation("org.slf4j:slf4j-api:${Versions.slf4j}")
+    implementation("org.slf4j:slf4j-ext:${Versions.slf4j}")
+
+    implementation("dev.evo.elasticart:elasticart-elasticsearch-transport:${Versions.esTransport}")
+    implementation("io.ktor:ktor-client-cio:${Versions.ktor}")
+
+    testImplementation("io.kotest:kotest-runner-junit5:${Versions.kotest}")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${Versions.kotlinxCoroutines}")
 }
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:$protobufVersion"
+        artifact = "com.google.protobuf:protoc:${Versions.protobuf}"
     }
 }
 
@@ -93,16 +161,16 @@ tasks {
 
 sourceSets["main"].java {
     srcDir(
-            Paths.get(protobuf.protobuf.generatedFilesBaseDir, "main", "java")
+        Paths.get(protobuf.protobuf.generatedFilesBaseDir, "main", "java")
     )
 }
 sourceSets["test"].java {
     srcDir(
-            Paths.get(protobuf.protobuf.generatedFilesBaseDir, "test", "java")
+        Paths.get(protobuf.protobuf.generatedFilesBaseDir, "test", "java")
     )
 }
 
-val javaVersion = JavaVersion.VERSION_1_8.toString()
+val javaVersion = Versions.java.toString()
 
 tasks.withType(JavaCompile::class.java) {
     sourceCompatibility = javaVersion
@@ -112,9 +180,8 @@ tasks.withType(KotlinCompile::class.java) {
     kotlinOptions {
         jvmTarget = javaVersion
         freeCompilerArgs = listOf(
-            "-Xopt-in=kotlin.ExperimentalStdlibApi",
-            "-Xopt-in=kotlin.time.ExperimentalTime",
-            "-Xopt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
+            "-opt-in=kotlin.time.ExperimentalTime",
+            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
         )
     }
 }
@@ -124,89 +191,6 @@ val compileKotlin by tasks.getting(KotlinCompile::class) {
 }
 val compileTestKotlin by tasks.getting(KotlinCompile::class) {
     dependsOn("generateTestProto")
-}
-
-val jar by tasks.getting(Jar::class)
-
-val sourceJar by tasks.creating(Jar::class) {
-    archiveClassifier.set("sources")
-    from(sourceSets["main"].allSource)
-}
-
-val javadocJar by project.tasks.registering(Jar::class) {
-    archiveClassifier.set("javadoc")
-}
-
-signing {
-    sign(publishing.publications)
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("jar") {
-            groupId = project.group.toString()
-            artifactId = project.name
-            version = project.version.toString()
-            from(components["java"])
-            artifact(sourceJar)
-            artifact(javadocJar)
-
-            pom {
-                name.set("kafka-es")
-                description.set("Kafka connect elasticsearch sink")
-                url.set("https://github.com/anti-social/kafka-es")
-
-                licenses {
-                    license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
-                    }
-                }
-
-                scm {
-                    url.set("https://github.com/anti-social/kafka-es")
-                    connection.set("scm:https://github.com/anti-social/kafka-es.git")
-                    developerConnection.set("scm:git://github.com/anti-social/kafka-es.git")
-                }
-
-                developers {
-                    developer {
-                        id.set("anti-social")
-                        name.set("Oleksandr Koval")
-                        email.set("kovalidis@gmail.com")
-                    }
-                }
-            }
-        }
-    }
-
-    repositories {
-        maven {
-            name = "test"
-            url = uri("file://${buildDir}/repos/testMaven")
-        }
-
-        maven {
-            val gitlabRepoUrl = findProperty("gitlabRepoUrl")?.toString()
-                ?: System.getenv("GITLAB_REPO_URL")
-            val gitlabToken = project.properties["gitlabToken"]?.toString()
-                ?: System.getenv("GITLAB_TOKEN")
-
-            name = "gitlab"
-            if (gitlabRepoUrl != null) {
-                url = uri(gitlabRepoUrl)
-                credentials(HttpHeaderCredentials::class) {
-                    name = "Job-Token"
-                    value = gitlabToken
-                }
-                authentication {
-                    create<HttpHeaderAuthentication>("header")
-                }
-            }
-        }
-    }
-
-
 }
 
 nexusPublishing {

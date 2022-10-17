@@ -24,9 +24,9 @@ class Args(parser: ArgParser) {
             "--distributed" to ConnectDistributed::main,
             help = "Mode: standalone or distributed"
     )
-    val connectArgs by parser.positionalList(
-            "CONFIG",
-            help = "Kafka connect config"
+    val connectConfigs by parser.positionalList(
+            "CONFIGS",
+            help = "Kafka connect configs"
     )
 }
 
@@ -42,6 +42,8 @@ fun main(args: Array<String>) = mainBody {
     )
             .start(wait = false)
 
-    parsedArgs.connectRunner(parsedArgs.connectArgs.toTypedArray())
+    ElasticsearchSinkTask.installMetrics(Metrics.kafkaEsMetrics)
+
+    parsedArgs.connectRunner(parsedArgs.connectConfigs.toTypedArray())
     metricsApp.stop(1000, 2000)
 }

@@ -1,7 +1,7 @@
-/.gradle
+.gradle
 /.m2
 /.vagga
-/build
+build
 
 *.class
 
