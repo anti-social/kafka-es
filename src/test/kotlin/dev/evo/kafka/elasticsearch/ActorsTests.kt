@@ -4,9 +4,11 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 
 import java.io.IOException
-import kotlin.time.Duration
+
+import kotlin.time.DurationUnit
 
 import kotlin.time.TestTimeSource
+import kotlin.time.toDuration
 
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -98,17 +100,17 @@ class BulkActorTests : StringSpec({
                 channel.send(SinkMsg.Data(listOf(1)))
                 bulkChannel.tryReceive().getOrNull() shouldBe null
 
-                clock += Duration.milliseconds(8)
+                clock += 8.toDuration(DurationUnit.MILLISECONDS)
                 advanceTimeBy(8)
                 bulkChannel.tryReceive().getOrNull() shouldBe null
 
                 channel.send(SinkMsg.Data(listOf(2)))
 
-                clock += Duration.milliseconds(1)
+                clock += 1.toDuration(DurationUnit.MILLISECONDS)
                 advanceTimeBy(1)
                 bulkChannel.tryReceive().getOrNull() shouldBe null
 
-                clock += Duration.milliseconds(1)
+                clock += 1.toDuration(DurationUnit.MILLISECONDS)
                 advanceTimeBy(1)
                 bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 2))
             } finally {
@@ -134,22 +136,22 @@ class BulkActorTests : StringSpec({
             )
 
             try {
-                clock += Duration.milliseconds(8)
+                clock += 8.toDuration(DurationUnit.MILLISECONDS)
                 advanceTimeBy(8)
                 channel.send(SinkMsg.Data(listOf(1)))
                 bulkChannel.tryReceive().getOrNull() shouldBe null
 
-                clock += Duration.milliseconds(9)
+                clock += 9.toDuration(DurationUnit.MILLISECONDS)
                 advanceTimeBy(9)
                 bulkChannel.tryReceive().getOrNull() shouldBe null
                 channel.send(SinkMsg.Data(listOf(2, 3, 4)))
                 bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(1, 2, 3))
 
-                clock += Duration.milliseconds(9)
+                clock += 9.toDuration(DurationUnit.MILLISECONDS)
                 advanceTimeBy(9)
                 bulkChannel.tryReceive().getOrNull() shouldBe null
 
-                clock += Duration.milliseconds(1)
+                clock += 1.toDuration(DurationUnit.MILLISECONDS)
                 advanceTimeBy(1)
                 bulkChannel.tryReceive().getOrNull() shouldBe SinkMsg.Data(listOf(4))
             } finally {

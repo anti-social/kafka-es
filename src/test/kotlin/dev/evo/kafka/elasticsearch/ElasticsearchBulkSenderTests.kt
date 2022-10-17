@@ -12,9 +12,10 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 
 import java.io.IOException
 import kotlin.time.Duration
+import kotlin.time.DurationUnit
 
 import kotlin.time.TestTimeSource
-import kotlin.time.milliseconds
+import kotlin.time.toDuration
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
@@ -89,7 +90,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
                     |{"name":"Test json","keyword":null}
                     |""".trimMargin()
 
-                clock += Duration.milliseconds(2)
+                clock += 2.toDuration(DurationUnit.MILLISECONDS)
             },
             requestTimeoutMs = 10_000,
             clock = clock,
@@ -221,7 +222,7 @@ class ElasticsearchBulkSenderTests : StringSpec({
                     |{"id":0,"name":"Test protobuf","counter":"0"}
                     |""".trimMargin()
 
-                clock += Duration.milliseconds(3)
+                clock += 3.toDuration(DurationUnit.MILLISECONDS)
             },
             requestTimeoutMs = 10_000,
             clock = clock,

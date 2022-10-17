@@ -2,9 +2,9 @@ package dev.evo.kafka.elasticsearch
 
 import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
+
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-
 import kotlinx.coroutines.test.runBlockingTest
 
 import kotlinx.serialization.json.buildJsonObject

@@ -14,8 +14,8 @@ plugins {
     `maven-publish`
     signing
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
-    id("org.jetbrains.kotlin.jvm") version "1.5.31"
-    kotlin("plugin.serialization") version "1.5.31"
+    id("org.jetbrains.kotlin.jvm") version "1.7.20"
+    kotlin("plugin.serialization") version "1.7.20"
     id("com.google.protobuf") version "0.8.17"
     id("org.ajoberstar.grgit") version "4.1.0"
 }
