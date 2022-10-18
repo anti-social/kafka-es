@@ -45,7 +45,7 @@ class ElasticsearchSink<T>(
     private val routerActor: RoutingActor<T>?
 
     private val bulkChannels: List<Channel<SinkMsg<T>>>
-    private val bulkActors: List<BulkActor<T>>
+    private val bufferingActors: List<BufferingActor<T>>
 
     init {
         if (concurrency > 1) {
@@ -58,15 +58,15 @@ class ElasticsearchSink<T>(
             bulkChannels = (0 until concurrency).map {
                 Channel(maxPendingBulks)
             }
-            bulkActors = partitionedChannels.zip(bulkChannels).map { (channel, bulkChannel) ->
-                BulkActor(scope, channel, bulkChannel, bulkSize, bulkDelayMs)
+            bufferingActors = partitionedChannels.zip(bulkChannels).map { (channel, bulkChannel) ->
+                BufferingActor(scope, channel, bulkChannel, bulkSize, bulkDelayMs)
             }
         } else {
             partitionedChannels = null
             routerActor = null
             bulkChannels = listOf(Channel(maxPendingBulks))
-            bulkActors = listOf(
-                BulkActor(scope, inChannel, bulkChannels[0], bulkSize, bulkDelayMs)
+            bufferingActors = listOf(
+                BufferingActor(scope, inChannel, bulkChannels[0], bulkSize, bulkDelayMs)
             )
         }
     }
@@ -139,7 +139,7 @@ class ElasticsearchSink<T>(
 
     fun cancel(cause: CancellationException? = null) {
         bulkWriters.forEach { w -> w.cancel(cause) }
-        bulkActors.forEach { actor -> actor.cancel(cause) }
+        bufferingActors.forEach { actor -> actor.cancel(cause) }
         routerActor?.cancel(cause)
     }
 }

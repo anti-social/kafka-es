@@ -4,6 +4,7 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -47,7 +48,7 @@ class RoutingActor<T>(
         require(outChannels.isNotEmpty())
     }
 
-    private val job = scope.launch {
+    private val job = scope.launch(CoroutineName("routing")) {
         while (true) {
             when (val msg = inChannel.receiveCatching().getOrNull()) {
                 is SinkMsg.Data -> {
@@ -90,7 +91,7 @@ class RoutingActor<T>(
 }
 
 /**
- * Bulk actor takes messages from an input channel, groups them into chunks and
+ * Buffering actor takes messages from an input channel, groups them into chunks and
  * sends those chunks into an output channel.
  *
  * @param scope a [CoroutineScope] to launch an actor
@@ -100,7 +101,7 @@ class RoutingActor<T>(
  * @param bulkDelayMs maximum delay to wait from the first message in a bulk
  * @param clock a [TimeSource] for testing purposes
  */
-class BulkActor<T>(
+class BufferingActor<T>(
     scope: CoroutineScope,
     channel: ReceiveChannel<SinkMsg<T>>,
     private val bulkChannel: SendChannel<SinkMsg<T>>,
@@ -110,7 +111,7 @@ class BulkActor<T>(
 ) {
     private var buffer = ArrayList<T>(bulkSize)
     private var firstMessageMark: TimeMark? = null
-    private val job = scope.launch {
+    private val job = scope.launch(CoroutineName("buffering")) {
         while (true) {
             val timeoutMs = firstMessageMark.let { firstMessageMark ->
                 if (firstMessageMark == null || buffer.isEmpty()) {
@@ -206,7 +207,7 @@ class BulkSinkActor<T, R>(
     private val metricsUpdater: MetricsUpdater? = null,
     clock: TimeSource = TimeSource.Monotonic,
 ) {
-    val job = scope.launch {
+    val job = scope.launch(CoroutineName("sink")) {
         var lastProcessTimeMark = clock.markNow()
         while (true) {
             when (val msg = channel.receiveCatching().getOrNull()) {

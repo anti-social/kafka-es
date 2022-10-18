@@ -52,7 +52,7 @@ class BulkActorTests : StringSpec({
         runTest(UnconfinedTestDispatcher()) {
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
-            val bulker = BulkActor(
+            val bulker = BufferingActor(
                 this,
                 channel,
                 bulkChannel,
@@ -89,7 +89,7 @@ class BulkActorTests : StringSpec({
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val clock = TestTimeSource()
-            val bulker = BulkActor(
+            val bulker = BufferingActor(
                 this,
                 channel,
                 bulkChannel,
@@ -128,7 +128,7 @@ class BulkActorTests : StringSpec({
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val clock = TestTimeSource()
-            val bulker = BulkActor(
+            val bulker = BufferingActor(
                 this,
                 channel,
                 bulkChannel,
