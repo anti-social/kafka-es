@@ -1,6 +1,7 @@
 package dev.evo.kafka.elasticsearch
 
 import dev.evo.elasticmagic.serde.Serde
+import dev.evo.elasticmagic.serde.serialization.JsonSerde
 import dev.evo.elasticmagic.transport.Method
 import dev.evo.elasticmagic.transport.Parameters
 import dev.evo.elasticmagic.transport.Request
@@ -16,13 +17,13 @@ class BulkRequest<R>(
     path: String,
     parameters: Parameters = emptyMap(),
     body: List<BulkAction>,
-    processResult: (JsonObject) -> R
+    processResponse: (JsonObject) -> R
 ) : Request<List<BulkAction>, JsonObject, R>(
     method,
     path,
     parameters = parameters,
     body = body,
-    processResult = processResult
+    processResponse = processResponse
 ) {
     companion object {
         operator fun invoke(
@@ -36,6 +37,7 @@ class BulkRequest<R>(
     }
 
     override val contentType = "application/x-ndjson"
+    override val errorSerde = JsonSerde
 
     override fun serializeRequest(encoder: RequestEncoder) {
         val body = body
@@ -46,7 +48,7 @@ class BulkRequest<R>(
         }
     }
 
-    override fun deserializeResponse(response: String, serde: Serde): JsonObject {
+    override fun deserializeResponse(response: String): JsonObject {
         // HEAD requests return empty response body
         return Json.decodeFromString(JsonElement.serializer(), response.ifEmpty { "{}" }).jsonObject
     }

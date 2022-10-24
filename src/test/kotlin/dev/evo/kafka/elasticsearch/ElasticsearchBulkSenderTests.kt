@@ -1,9 +1,8 @@
 package dev.evo.kafka.elasticsearch
 
-import dev.evo.elasticmagic.serde.serialization.JsonSerde
 import dev.evo.elasticmagic.transport.ElasticsearchTransport
 import dev.evo.elasticmagic.transport.Method
-import dev.evo.elasticmagic.transport.RequestBodyBuilder
+import dev.evo.elasticmagic.transport.Request
 import dev.evo.elasticmagic.transport.StringEncoder
 
 import io.kotest.assertions.throwables.shouldThrow
@@ -28,7 +27,7 @@ import kotlinx.serialization.json.put
 
 class ElasticsearchMockTransport(
     private val check: suspend RequestContext.() -> Unit,
-) : ElasticsearchTransport("http://example.com:9200", JsonSerde, Config()) {
+) : ElasticsearchTransport("http://example.com:9200", Config()) {
     class RequestContext(
         val method: Method,
         val path: String,
@@ -43,20 +42,14 @@ class ElasticsearchMockTransport(
         }
     }
 
-    override suspend fun doRequest(
-        method: Method,
-        path: String,
-        parameters: Map<String, List<String>>?,
-        contentType: String?,
-        bodyBuilder: RequestBodyBuilder?,
-    ): String {
+    override suspend fun doRequest(request: Request<*, *, *>): String {
         val bodyEncoder = StringEncoder()
-        bodyBuilder?.invoke(bodyEncoder)
+        request.serializeRequest(bodyEncoder)
         val ctx = RequestContext(
-            method,
-            path,
-            parameters,
-            contentType,
+            request.method,
+            request.path,
+            request.parameters,
+            request.contentType,
             bodyEncoder.toByteArray().toString(Charsets.UTF_8),
         )
         ctx.check()

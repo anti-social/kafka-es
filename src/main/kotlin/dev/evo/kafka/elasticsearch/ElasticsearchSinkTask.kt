@@ -128,7 +128,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 MDC.put("es_url", esUrl.joinToString(",", prefix = "[", postfix = "]"))
                 logger.info("Initializing Elasticsearch client for cluster: $esUrl")
                 // TODO: Mutliple endpoint urls
-                ElasticsearchKtorTransport(esUrl[0], JsonSerde, CIO.create {}) {
+                ElasticsearchKtorTransport(esUrl[0], CIO.create {}) {
                     gzipRequests = config.getBoolean(Config.COMPRESSION_ENABLED)
                 }
             }
