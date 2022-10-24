@@ -36,6 +36,7 @@ import kotlinx.coroutines.slf4j.MDCContext
 
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
+import org.apache.kafka.connect.util.LoggingContext
 
 
 /**
@@ -155,8 +156,10 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         val esBulkSender = ElasticsearchBulkSender(
             esTransport, requestTimeoutMs
         )
+        val loggingConnectorContext = MDC.get(LoggingContext.CONNECTOR_CONTEXT)?.trim() ?: "[$name]"
         sink = ElasticsearchSink(
-            this,
+            loggingConnectorContext = loggingConnectorContext,
+            scope = this,
             concurrency = maxInFlightRequest,
             router = { action ->
                 val routingKey = action.meta.routing ?: action.meta.id()
@@ -167,6 +170,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             maxPendingBulks = bulkQueueSize,
             bulkWriterFactory = { channel ->
                 BulkSinkActor(
+                    coroutineName = "sink$loggingConnectorContext",
                     this, name, channel,
                     { actions -> esBulkSender.sendBulk(actions, refresh = false) },
                     delayBetweenRequestsMs = delayBetweenRequestsMs,

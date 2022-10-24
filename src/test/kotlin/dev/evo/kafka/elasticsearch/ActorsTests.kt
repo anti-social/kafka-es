@@ -25,6 +25,7 @@ class RoutingActorTests : StringSpec({
                 Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             }
             val router = RoutingActor(
+                "routing",
                 this,
                 inChannel,
                 outChannels.toList().toTypedArray(),
@@ -47,12 +48,13 @@ class RoutingActorTests : StringSpec({
     }
 })
 
-class BulkActorTests : StringSpec({
-    "bulk actor: no max delay" {
+class BufferingActorTests : StringSpec({
+    "no max delay" {
         runTest(UnconfinedTestDispatcher()) {
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val bulker = BufferingActor(
+                "buffering",
                 this,
                 channel,
                 bulkChannel,
@@ -84,12 +86,13 @@ class BulkActorTests : StringSpec({
         }
     }
 
-    "bulk actor: with max delay" {
+    "with max delay" {
         runTest(UnconfinedTestDispatcher()) {
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val clock = TestTimeSource()
             val bulker = BufferingActor(
+                "buffering",
                 this,
                 channel,
                 bulkChannel,
@@ -123,12 +126,13 @@ class BulkActorTests : StringSpec({
         }
     }
 
-    "bulk actor: with max delay after flush by size" {
+    "with max delay after flush by size" {
         runTest(UnconfinedTestDispatcher()) {
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val clock = TestTimeSource()
             val bulker = BufferingActor(
+                "buffering",
                 this,
                 channel,
                 bulkChannel,
@@ -172,6 +176,7 @@ class BulkSinkActorTests : StringSpec({
             val channel = Channel<SinkMsg<Unit>>()
             var retries = 0
             val sink = BulkSinkActor(
+                "buffering",
                 this,
                 "<test>",
                 channel,
@@ -215,6 +220,7 @@ class BulkSinkActorTests : StringSpec({
             val channel = Channel<SinkMsg<Unit>>()
             var retries = 0
             val sink = BulkSinkActor(
+                "sink",
                 this,
                 "<test>",
                 channel,
@@ -268,6 +274,7 @@ class BulkSinkActorTests : StringSpec({
             val channel = Channel<SinkMsg<Int>>()
             var retries = 0
             val sink = BulkSinkActor(
+                "sink",
                 this,
                 "<test>",
                 channel,

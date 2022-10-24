@@ -23,6 +23,7 @@ import kotlinx.coroutines.selects.select
  * @param clock a [TimeSource] for testing purposes
  */
 class ElasticsearchSink<T>(
+    loggingConnectorContext: String,
     scope: CoroutineScope,
     private val concurrency: Int,
     router: (T) -> Int,
@@ -53,20 +54,38 @@ class ElasticsearchSink<T>(
                 Channel(Channel.RENDEZVOUS)
             }
             routerActor = RoutingActor(
-                scope, inChannel, partitionedChannels.toTypedArray(), router
+                coroutineName = "routing$loggingConnectorContext",
+                scope = scope,
+                inChannel = inChannel,
+                outChannels = partitionedChannels.toTypedArray(),
+                router = router,
             )
             bulkChannels = (0 until concurrency).map {
                 Channel(maxPendingBulks)
             }
             bufferingActors = partitionedChannels.zip(bulkChannels).map { (channel, bulkChannel) ->
-                BufferingActor(scope, channel, bulkChannel, bulkSize, bulkDelayMs)
+                BufferingActor(
+                    coroutineName = "buffering$loggingConnectorContext",
+                    scope = scope,
+                    channel = channel,
+                    bulkChannel = bulkChannel,
+                    bulkSize = bulkSize,
+                    bulkDelayMs = bulkDelayMs,
+                )
             }
         } else {
             partitionedChannels = null
             routerActor = null
             bulkChannels = listOf(Channel(maxPendingBulks))
             bufferingActors = listOf(
-                BufferingActor(scope, inChannel, bulkChannels[0], bulkSize, bulkDelayMs)
+                BufferingActor(
+                    coroutineName = "buffering$loggingConnectorContext",
+                    scope = scope,
+                    channel = inChannel,
+                    bulkChannel = bulkChannels[0],
+                    bulkSize = bulkSize,
+                    bulkDelayMs = bulkDelayMs,
+                )
             )
         }
     }
