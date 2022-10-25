@@ -3,14 +3,12 @@ package dev.evo.kafka.elasticsearch
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.protobuf.MessageLite
-import com.google.protobuf.Parser
 
-import java.lang.invoke.MethodHandles
-import java.lang.invoke.MethodType
+import dev.evo.kafka.serde.ProtobufDeserializer
+import dev.evo.kafka.serde.ProtobufSerializer
 
 import org.apache.kafka.common.config.AbstractConfig
 import org.apache.kafka.common.config.ConfigDef
-import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.common.header.Headers
 import org.apache.kafka.connect.data.Schema
 import org.apache.kafka.connect.data.SchemaAndValue
@@ -18,8 +16,9 @@ import org.apache.kafka.connect.errors.DataException
 import org.apache.kafka.connect.storage.Converter
 
 class ProtobufConverter : Converter {
-    private lateinit var parser: Parser<*>
-    private lateinit var actionHeaderKey: String
+    private var actionHeaderKey: String = Config.DEFAULT_ACTION_HEADER
+    private val serializer = ProtobufSerializer()
+    private val deserializer = ProtobufDeserializer()
 
     class Config(props: MutableMap<String, *>) :
             AbstractConfig(CONFIG, props)
@@ -27,6 +26,7 @@ class ProtobufConverter : Converter {
         companion object {
             val PROTOBUF_CLASS = "protobuf.class"
             val ACTION_HEADER_KEY = "action.header.key"
+            val DEFAULT_ACTION_HEADER = "action"
 
             val CONFIG = ConfigDef().apply {
                 define(
@@ -38,7 +38,7 @@ class ProtobufConverter : Converter {
                 define(
                     ACTION_HEADER_KEY,
                     ConfigDef.Type.STRING,
-                    "action",
+                    DEFAULT_ACTION_HEADER,
                     ConfigDef.Importance.LOW,
                     "Header key where action meta information will be stored."
                 )
@@ -52,22 +52,8 @@ class ProtobufConverter : Converter {
 
         actionHeaderKey = config.getString(Config.ACTION_HEADER_KEY)
 
-        val protoClass = config.getClass(Config.PROTOBUF_CLASS)
-        val lookup = MethodHandles.lookup()
-        val parserGetterName = "parser"
-        val parserForTypeMethod = try {
-            lookup.findStatic(
-                protoClass,
-                parserGetterName,
-                MethodType.methodType(Parser::class.java)
-            )
-        } catch (e: NoSuchMethodException) {
-            throw ConfigException(
-                "${protoClass.canonicalName} class has no method $parserGetterName", e
-            )
-        }
-        parser = parserForTypeMethod.invoke() as Parser<*>
-
+        serializer.configure(configs, isKey)
+        deserializer.configure(configs, isKey)
     }
 
     override fun fromConnectData(topic: String, schema: Schema?, value: Any?): ByteArray? {
@@ -77,7 +63,8 @@ class ProtobufConverter : Converter {
         if (value !is MessageLite) {
             throw DataException("Value must be an instance of com.google.protobuf.MessageLite")
         }
-        return value.toByteArray()
+
+        return serializer.serialize(null, value)
     }
 
     override fun toConnectData(topic: String, headers: Headers?, value: ByteArray?): SchemaAndValue {
@@ -126,7 +113,7 @@ class ProtobufConverter : Converter {
         }
 
         try {
-            return ProtobufSource(parser.parseFrom(value) as Message)
+            return ProtobufSource(deserializer.deserialize(null, value) as Message)
         } catch (e: InvalidProtocolBufferException) {
             throw DataException("Cannot deserialize data", e)
         }

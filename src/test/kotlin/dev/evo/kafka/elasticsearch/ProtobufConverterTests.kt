@@ -91,7 +91,7 @@ class ProtobufConverterTests : StringSpec({
         val exc = shouldThrow<DataException> {
             converter.toConnectData("<test>", headers, "invalid data".toByteArray())
         }
-        exc.message shouldStartWith "Cannot deserialize data"
+        exc.message shouldStartWith "Error when parsing protobuf data"
     }
 
     "deserialize delete action" {
