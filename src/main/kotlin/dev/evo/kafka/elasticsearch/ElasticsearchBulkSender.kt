@@ -192,9 +192,10 @@ class ElasticsearchBulkSender(
             logger.error("Error when sending bulk actions", e)
             return SendBulkResult.IOError(e)
         } catch (e: UnresolvedAddressException) {
+            logger.error("Error when sending bulk actions", e)
             return SendBulkResult.IOError(e)
         } catch (e: TimeoutCancellationException) {
-            logger.error("Error when sending bulk actions", e)
+            logger.error("Timeout when sending bulk actions", e)
             return SendBulkResult.Timeout
         }
     }
