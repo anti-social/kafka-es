@@ -5,6 +5,7 @@ import dev.evo.elasticmagic.transport.ElasticsearchTransport
 import dev.evo.elasticmagic.transport.Method
 
 import java.io.IOException
+import java.nio.channels.UnresolvedAddressException
 
 import kotlin.time.measureTimedValue
 import kotlin.time.TimeSource
@@ -189,6 +190,8 @@ class ElasticsearchBulkSender(
             return SendBulkResult.IOError(e)
         } catch (e: IOException) {
             logger.error("Error when sending bulk actions", e)
+            return SendBulkResult.IOError(e)
+        } catch (e: UnresolvedAddressException) {
             return SendBulkResult.IOError(e)
         } catch (e: TimeoutCancellationException) {
             logger.error("Error when sending bulk actions", e)
