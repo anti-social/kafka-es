@@ -4,7 +4,7 @@ plugins {
 
 dependencies {
     implementation(project(":"))
-    implementation("com.xenomachina:kotlin-argparser:${Versions.argparser}")
+    api("com.github.ajalt.clikt:clikt:${Versions.clikt}")
     implementation("org.apache.kafka:connect-runtime:${Versions.kafka}")
     implementation("dev.evo.prometheus:prometheus-kt-ktor:${Versions.prometheusKt}")
     implementation("io.ktor:ktor-server-core:${Versions.ktor}")

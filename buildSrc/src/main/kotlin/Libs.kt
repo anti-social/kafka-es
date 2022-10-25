@@ -19,6 +19,6 @@ object Versions {
     val kotest = "5.5.1"
 
     // Runner
-    const val argparser = "2.0.7"
+    const val clikt = "3.5.0"
     const val prometheusKt = "0.2.0"
 }
