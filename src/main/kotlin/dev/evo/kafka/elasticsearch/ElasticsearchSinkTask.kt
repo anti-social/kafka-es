@@ -129,13 +129,15 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 MDC.put("es_url", esUrl.joinToString(",", prefix = "[", postfix = "]"))
                 logger.info("Initializing Elasticsearch client for cluster: $esUrl")
                 // TODO: Mutliple endpoint urls
-                ElasticsearchKtorTransport(esUrl[0], CIO.create {}) {
+                ElasticsearchKtorTransport(esUrl[0], CIO.create {
+                    requestTimeout = requestTimeoutMs
+                }) {
                     gzipRequests = config.getBoolean(Config.COMPRESSION_ENABLED)
                 }
             }
         } catch (e: ConfigException) {
             throw ConnectException(
-                    "Couldn't start ${this::class.java} due to configuration error", e
+                "Couldn't start ${this::class.java} due to configuration error", e
             )
         }
     }
