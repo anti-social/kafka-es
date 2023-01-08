@@ -108,7 +108,7 @@ class ElasticsearchBulkSender(
         bulk: List<BulkAction>,
         refresh: Boolean = false,
     ): SendBulkResult<BulkAction, BulkActionResult> {
-        try {
+        val bulkResult = try {
             val (bulkResult, totalTime) = withTimeout(requestTimeoutMs) {
                 logger.debug("Sending ${bulk.size} action ")
                 val params = if (refresh) {
@@ -172,7 +172,7 @@ class ElasticsearchBulkSender(
                 ))
             }
             if (retryItems.isNotEmpty()) {
-                logger.error(formatFailedItems(
+                logger.warn(formatFailedItems(
                     "Some documents weren't indexed, will retry",
                     retryItems
                 ))
@@ -186,18 +186,29 @@ class ElasticsearchBulkSender(
                 retryActions,
             )
         } catch (e: ElasticsearchException) {
-            logger.error("Error when sending bulk actions", e)
-            return SendBulkResult.IOError(e)
+            SendBulkResult.IOError(e)
         } catch (e: IOException) {
-            logger.error("Error when sending bulk actions", e)
-            return SendBulkResult.IOError(e)
+            SendBulkResult.IOError(e)
         } catch (e: UnresolvedAddressException) {
-            logger.error("Error when sending bulk actions", e)
-            return SendBulkResult.IOError(e)
+            SendBulkResult.IOError(e)
         } catch (e: TimeoutCancellationException) {
-            logger.error("Timeout when sending bulk actions", e)
-            return SendBulkResult.Timeout
+            SendBulkResult.Timeout(e)
         }
+
+        val exception = when (bulkResult) {
+            is SendBulkResult.IOError -> bulkResult.error
+            is SendBulkResult.Timeout -> bulkResult.error
+            else -> null
+        }
+        if (exception != null) {
+            logger.error("Error when sending bulk actions", exception)
+            logger.warn(formatFailedActions(
+                "Some documents weren't indexed, will retry",
+                bulk
+            ))
+        }
+
+        return bulkResult
     }
 
     private fun formatFailedItems(
@@ -206,7 +217,27 @@ class ElasticsearchBulkSender(
     ): String {
         return "<${esTransport.baseUrl}/_bulk> $message:\n" +
             items.joinToString("\n") {
-                "\t[${it.index}/${it.type}/${it.id}] ${it.error}"
+                val docType = if (it.type != null) {
+                    "/${it.type}"
+                } else {
+                    ""
+                }
+                "\t[${it.index}${docType}/${it.id}] ${it.error}"
+            }
+    }
+
+    private fun formatFailedActions(
+        message: String,
+        items: List<BulkAction>,
+    ): String {
+        return "<${esTransport.baseUrl}/_bulk> $message:\n" +
+            items.joinToString("\n") {
+                val docType = if (it.meta.type != null) {
+                    "/${it.meta.type}"
+                } else {
+                    ""
+                }
+                "\t[${it.meta.index}${docType}/${it.meta.id()}]"
             }
     }
 }

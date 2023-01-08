@@ -229,7 +229,7 @@ class BulkSinkActorTests : StringSpec({
                     when (retries) {
                         1 -> {
                             delay(3_000)
-                            SendBulkResult.Timeout
+                            SendBulkResult.Timeout(IllegalStateException())
                         }
                         2 -> {
                             SendBulkResult.Success(

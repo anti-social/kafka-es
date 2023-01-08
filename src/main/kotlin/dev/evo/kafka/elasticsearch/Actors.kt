@@ -184,10 +184,12 @@ sealed class SendBulkResult<out T, out R> {
     ) : SendBulkResult<T, R>()
 
     class IOError(
-        val error: Throwable,
+        val error: Throwable
     ) : SendBulkResult<Nothing, Nothing>()
 
-    object Timeout : SendBulkResult<Nothing, Nothing>()
+    class Timeout(
+        val error: Throwable
+    ) : SendBulkResult<Nothing, Nothing>()
 }
 
 /**
@@ -242,7 +244,7 @@ class BulkSinkActor<T, R>(
                     metricsUpdater?.onError(connectorName)
                     bulk
                 }
-                SendBulkResult.Timeout -> {
+                is SendBulkResult.Timeout -> {
                     metricsUpdater?.onTimeout(connectorName)
                     bulk
                 }
