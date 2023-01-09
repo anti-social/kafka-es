@@ -67,6 +67,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private var topicToIndexMap = emptyMap<String, String>()
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
     private var requestTimeoutMs = Config.REQUEST_TIMEOUT_DEFAULT
+    private var keepAliveTimeMs = Config.KEEP_ALIVE_TIME_DEFAULT
     private var maxInFlightRequest = Config.MAX_IN_FLIGHT_REQUESTS_DEFAULT
     private var delayBetweenRequestsMs = Config.DELAY_BEETWEEN_REQUESTS_DEFAULT
     private var bulkSize = Config.BULK_SIZE_DEFAULT
@@ -118,6 +119,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             bulkDelayMs = config.getLong(Config.BULK_DELAY)
             bulkQueueSize = config.getInt(Config.QUEUE_SIZE)
             requestTimeoutMs = config.getLong(Config.REQUEST_TIMEOUT)
+            keepAliveTimeMs = config.getLong(Config.KEEP_ALIVE_TIME)
             retryIntervalMs = config.getLong(Config.RETRY_INTERVAL)
             maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
 
@@ -131,6 +133,9 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 // TODO: Mutliple endpoint urls
                 ElasticsearchKtorTransport(esUrl[0], CIO.create {
                     requestTimeout = requestTimeoutMs
+                    if (keepAliveTimeMs >= 0) {
+                        endpoint.keepAliveTime = keepAliveTimeMs
+                    }
                 }) {
                     gzipRequests = config.getBoolean(Config.COMPRESSION_ENABLED)
                 }

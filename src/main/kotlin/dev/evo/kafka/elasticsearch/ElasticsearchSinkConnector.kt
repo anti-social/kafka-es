@@ -56,6 +56,8 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val BULK_DELAY_DEFAULT = 10_000L
         val REQUEST_TIMEOUT = "request.timeout.ms"
         val REQUEST_TIMEOUT_DEFAULT = 10_000L
+        val KEEP_ALIVE_TIME = "keep.alive.time.ms"
+        val KEEP_ALIVE_TIME_DEFAULT = -1L
         val MAX_IN_FLIGHT_REQUESTS = "max.in.flight.requests"
         val MAX_IN_FLIGHT_REQUESTS_DEFAULT = 1
         val DELAY_BEETWEEN_REQUESTS = "delay.between.requests.ms"
@@ -120,6 +122,13 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                 REQUEST_TIMEOUT_DEFAULT,
                 ConfigDef.Importance.MEDIUM,
                 "Timeout for Elasticsearch requests."
+            )
+            CONFIG.define(
+                KEEP_ALIVE_TIME,
+                ConfigDef.Type.LONG,
+                KEEP_ALIVE_TIME_DEFAULT,
+                ConfigDef.Importance.MEDIUM,
+                "Connection keep-alive Time."
             )
             CONFIG.define(
                 MAX_IN_FLIGHT_REQUESTS,
