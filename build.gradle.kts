@@ -139,7 +139,7 @@ dependencies {
     implementation("org.slf4j:slf4j-ext:${Versions.slf4j}")
 
     implementation("dev.evo.elasticmagic:elasticmagic-transport-ktor:${Versions.elasticmagic}")
-    implementation("dev.evo.elasticmagic:elasticmagic-serde-serialization-json:${Versions.elasticmagic}")
+    implementation("dev.evo.elasticmagic:elasticmagic-serde-kotlinx-json:${Versions.elasticmagic}")
     implementation("io.ktor:ktor-client-cio:${Versions.ktor}")
 
     testImplementation("io.kotest:kotest-runner-junit5:${Versions.kotest}")

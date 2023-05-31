@@ -2,8 +2,10 @@ package dev.evo.kafka.elasticsearch
 
 import dev.evo.elasticmagic.transport.ElasticsearchTransport
 import dev.evo.elasticmagic.transport.Method
+import dev.evo.elasticmagic.transport.PlainRequest
+import dev.evo.elasticmagic.transport.PlainResponse
 import dev.evo.elasticmagic.transport.Request
-import dev.evo.elasticmagic.transport.StringEncoder
+import dev.evo.elasticmagic.transport.IdentityEncoder
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
@@ -42,18 +44,21 @@ class ElasticsearchMockTransport(
         }
     }
 
-    override suspend fun doRequest(request: Request<*, *, *>): String {
-        val bodyEncoder = StringEncoder()
-        request.serializeRequest(bodyEncoder)
+    override suspend fun doRequest(request: PlainRequest): PlainResponse {
         val ctx = RequestContext(
             request.method,
             request.path,
             request.parameters,
             request.contentType,
-            bodyEncoder.toByteArray().toString(Charsets.UTF_8),
+            request.content.toString(Charsets.UTF_8),
         )
         ctx.check()
-        return ctx.response
+        return PlainResponse(
+            200,
+            emptyMap(),
+            ctx.contentType,
+            ctx.response,
+        )
     }
 }
 
