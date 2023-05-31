@@ -1,5 +1,4 @@
 import com.google.protobuf.gradle.protobuf
-import com.google.protobuf.gradle.protoc
 
 import java.nio.file.Paths
 
@@ -15,7 +14,7 @@ plugins {
     kotlin("jvm") version Versions.kotlin
     kotlin("plugin.serialization") version Versions.kotlin
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
-    id("com.google.protobuf") version "0.8.17"
+    id("com.google.protobuf") version "0.9.3"
     id("org.ajoberstar.grgit") version "4.1.0"
 }
 
@@ -147,12 +146,6 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${Versions.kotlinxCoroutines}")
 }
 
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:${Versions.protobuf}"
-    }
-}
-
 tasks {
     val test by getting(Test::class) {
         useJUnitPlatform()
@@ -160,21 +153,10 @@ tasks {
     }
     val jacocoTestReport by getting(JacocoReport::class) {
         reports {
-            html.isEnabled = true
-            xml.isEnabled = true
+            html.required.set(true)
+            xml.required.set(true)
         }
     }
-}
-
-sourceSets["main"].java {
-    srcDir(
-        Paths.get(protobuf.protobuf.generatedFilesBaseDir, "main", "java")
-    )
-}
-sourceSets["test"].java {
-    srcDir(
-        Paths.get(protobuf.protobuf.generatedFilesBaseDir, "test", "java")
-    )
 }
 
 tasks.withType(KotlinCompile::class.java) {
