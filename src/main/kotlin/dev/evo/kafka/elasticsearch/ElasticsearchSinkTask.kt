@@ -36,6 +36,7 @@ import kotlinx.coroutines.slf4j.MDCContext
 
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
+import kotlin.text.toIntOrNull
 import org.apache.kafka.connect.util.LoggingContext
 
 
@@ -163,10 +164,18 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         val esBulkSender = ElasticsearchBulkSender(
             esTransport, requestTimeoutMs
         )
-        val loggingConnectorContext = MDC.get(LoggingContext.CONNECTOR_CONTEXT)?.trim() ?: "[$name]"
+        val loggingConnectorContextValue = MDC.get(LoggingContext.CONNECTOR_CONTEXT)?.trim() ?: "[$name]"
+        // Example of kafka connect connector logging context:
+        // [my-connector|task-3]
+        val taskId = loggingConnectorContextValue
+            .trim('[', ']')
+            .split('|', limit = 2)
+            .getOrNull(1)
+            ?.removePrefix("task-")
+            ?.toIntOrNull() ?: 0
         sink = ElasticsearchSink(
-            loggingConnectorContext = loggingConnectorContext,
-            scope = this,
+            loggingConnectorContextValue = loggingConnectorContextValue,
+            coroutineScope = this,
             concurrency = maxInFlightRequest,
             router = { action ->
                 val routingKey = action.meta.routing ?: action.meta.id()
@@ -177,8 +186,8 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             maxPendingBulks = bulkQueueSize,
             bulkWriterFactory = { channel ->
                 BulkSinkActor(
-                    coroutineName = "sink$loggingConnectorContext",
-                    this, name, channel,
+                    coroutineName = "sink$loggingConnectorContextValue",
+                    this, name, taskId, channel,
                     { actions -> esBulkSender.sendBulk(actions, refresh = false) },
                     delayBetweenRequestsMs = delayBetweenRequestsMs,
                     minRetryDelayMs = retryIntervalMs,

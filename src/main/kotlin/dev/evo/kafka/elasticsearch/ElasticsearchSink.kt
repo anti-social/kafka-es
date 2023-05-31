@@ -23,8 +23,8 @@ import kotlinx.coroutines.selects.select
  * @param clock a [TimeSource] for testing purposes
  */
 class ElasticsearchSink<T>(
-    loggingConnectorContext: String,
-    scope: CoroutineScope,
+    loggingConnectorContextValue: String,
+    coroutineScope: CoroutineScope,
     private val concurrency: Int,
     router: (T) -> Int,
     bulkSize: Int,
@@ -54,8 +54,8 @@ class ElasticsearchSink<T>(
                 Channel(Channel.RENDEZVOUS)
             }
             routerActor = RoutingActor(
-                coroutineName = "routing$loggingConnectorContext",
-                scope = scope,
+                coroutineName = "routing$loggingConnectorContextValue",
+                coroutineScope = coroutineScope,
                 inChannel = inChannel,
                 outChannels = partitionedChannels.toTypedArray(),
                 router = router,
@@ -65,8 +65,8 @@ class ElasticsearchSink<T>(
             }
             bufferingActors = partitionedChannels.zip(bulkChannels).map { (channel, bulkChannel) ->
                 BufferingActor(
-                    coroutineName = "buffering$loggingConnectorContext",
-                    scope = scope,
+                    coroutineName = "buffering$loggingConnectorContextValue",
+                    coroutineScope = coroutineScope,
                     channel = channel,
                     bulkChannel = bulkChannel,
                     bulkSize = bulkSize,
@@ -79,8 +79,8 @@ class ElasticsearchSink<T>(
             bulkChannels = listOf(Channel(maxPendingBulks))
             bufferingActors = listOf(
                 BufferingActor(
-                    coroutineName = "buffering$loggingConnectorContext",
-                    scope = scope,
+                    coroutineName = "buffering$loggingConnectorContextValue",
+                    coroutineScope = coroutineScope,
                     channel = inChannel,
                     bulkChannel = bulkChannels[0],
                     bulkSize = bulkSize,

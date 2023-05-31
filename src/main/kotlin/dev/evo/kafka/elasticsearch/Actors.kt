@@ -34,14 +34,14 @@ sealed class SinkMsg<T> {
  * Router actor splits messages from an input channel into several output channels.
  *
  * @param coroutineName a name of an actor coroutine
- * @param scope a [CoroutineScope] to launch an actor
+ * @param coroutineScope a [CoroutineScope] to launch an actor
  * @param inChannel the input channel
  * @param outChannels output channels
  * @param router a function that is used to route a message into certain output channel
  */
 class RoutingActor<T>(
     coroutineName: String,
-    scope: CoroutineScope,
+    coroutineScope: CoroutineScope,
     inChannel: ReceiveChannel<SinkMsg<T>>,
     outChannels: Array<SendChannel<SinkMsg<T>>>,
     router: (T) -> Int,
@@ -50,7 +50,7 @@ class RoutingActor<T>(
         require(outChannels.isNotEmpty())
     }
 
-    private val job = scope.launch(CoroutineName(coroutineName)) {
+    private val job = coroutineScope.launch(CoroutineName(coroutineName)) {
         while (true) {
             when (val msg = inChannel.receiveCatching().getOrNull()) {
                 is SinkMsg.Data -> {
@@ -97,7 +97,7 @@ class RoutingActor<T>(
  * sends those chunks into an output channel.
  *
  * @param coroutineName a name of an actor coroutine
- * @param scope a [CoroutineScope] to launch an actor
+ * @param coroutineScope a [CoroutineScope] to launch an actor
  * @param channel the input channel
  * @param bulkChannel the output channel with grouped messages
  * @param bulkSize maximum number of grouped messages inside a single bulk
@@ -106,7 +106,7 @@ class RoutingActor<T>(
  */
 class BufferingActor<T>(
     coroutineName: String,
-    scope: CoroutineScope,
+    coroutineScope: CoroutineScope,
     channel: ReceiveChannel<SinkMsg<T>>,
     private val bulkChannel: SendChannel<SinkMsg<T>>,
     private val bulkSize: Int,
@@ -115,7 +115,7 @@ class BufferingActor<T>(
 ) {
     private var buffer = ArrayList<T>(bulkSize)
     private var firstMessageMark: TimeMark? = null
-    private val job = scope.launch(CoroutineName(coroutineName)) {
+    private val job = coroutineScope.launch(CoroutineName(coroutineName)) {
         while (true) {
             val timeoutMs = firstMessageMark.let { firstMessageMark ->
                 if (firstMessageMark == null || buffer.isEmpty()) {
@@ -196,7 +196,7 @@ sealed class SendBulkResult<out T, out R> {
  * Bulk writer actor takes actions from an input channel and sends them into Elasticsearch.
  *
  * @param coroutineName a name of an actor coroutine
- * @param scope a [CoroutineScope] to launch an actor
+ * @param coroutineScope a [CoroutineScope] to launch an actor
  * @param channel the input channel
  * @param sendBulk an Elasticsearch bulk requests sender
  * @param delayBetweenRequestsMs the delay between bulk requests
@@ -205,8 +205,9 @@ sealed class SendBulkResult<out T, out R> {
  */
 class BulkSinkActor<T, R>(
     coroutineName: String,
-    private val scope: CoroutineScope,
+    private val coroutineScope: CoroutineScope,
     private val connectorName: String,
+    private val taskId: Int,
     channel: ReceiveChannel<SinkMsg<T>>,
     private val sendBulk: suspend (List<T>) -> SendBulkResult<T, R>,
     private val minRetryDelayMs: Long,
@@ -215,7 +216,7 @@ class BulkSinkActor<T, R>(
     private val metricsUpdater: MetricsUpdater? = null,
     clock: TimeSource = TimeSource.Monotonic,
 ) {
-    val job = scope.launch(CoroutineName(coroutineName)) {
+    val job = coroutineScope.launch(CoroutineName(coroutineName)) {
         var lastProcessTimeMark = clock.markNow()
         while (true) {
             when (val msg = channel.receiveCatching().getOrNull()) {
@@ -237,15 +238,15 @@ class BulkSinkActor<T, R>(
         while (true) {
             val retryActions = when (val sendResult = sendBulk(bulk)) {
                 is SendBulkResult.Success<*, *> -> {
-                    metricsUpdater?.onSuccess(connectorName, sendResult)
+                    metricsUpdater?.onSuccess(connectorName, taskId, sendResult)
                     sendResult.retryActions
                 }
                 is SendBulkResult.IOError -> {
-                    metricsUpdater?.onError(connectorName)
+                    metricsUpdater?.onError(connectorName, taskId)
                     bulk
                 }
                 is SendBulkResult.Timeout -> {
-                    metricsUpdater?.onTimeout(connectorName)
+                    metricsUpdater?.onTimeout(connectorName, taskId)
                     bulk
                 }
             }

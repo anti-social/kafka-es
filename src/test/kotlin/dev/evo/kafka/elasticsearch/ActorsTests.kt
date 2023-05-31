@@ -25,10 +25,10 @@ class RoutingActorTests : StringSpec({
                 Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             }
             val router = RoutingActor(
-                "routing",
-                this,
-                inChannel,
-                outChannels.toList().toTypedArray(),
+                coroutineName = "routing",
+                coroutineScope = this,
+                inChannel = inChannel,
+                outChannels = outChannels.toList().toTypedArray(),
             ) { v -> v }
 
             try {
@@ -54,11 +54,11 @@ class BufferingActorTests : StringSpec({
             val channel = Channel<SinkMsg<Int>>(0)
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val bulker = BufferingActor(
-                "buffering",
-                this,
-                channel,
-                bulkChannel,
-                2,
+                coroutineName = "buffering",
+                coroutineScope = this,
+                channel = channel,
+                bulkChannel = bulkChannel,
+                bulkSize = 2,
             )
 
             try {
@@ -92,13 +92,13 @@ class BufferingActorTests : StringSpec({
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val clock = TestTimeSource()
             val bulker = BufferingActor(
-                "buffering",
-                this,
-                channel,
-                bulkChannel,
-                3,
-                10,
-                clock,
+                coroutineName = "buffering",
+                coroutineScope = this,
+                channel = channel,
+                bulkChannel = bulkChannel,
+                bulkSize = 3,
+                bulkDelayMs = 10,
+                clock = clock,
             )
 
             try {
@@ -132,13 +132,13 @@ class BufferingActorTests : StringSpec({
             val bulkChannel = Channel<SinkMsg<Int>>(Channel.UNLIMITED)
             val clock = TestTimeSource()
             val bulker = BufferingActor(
-                "buffering",
-                this,
-                channel,
-                bulkChannel,
-                3,
-                10,
-                clock,
+                coroutineName = "buffering",
+                coroutineScope = this,
+                channel = channel,
+                bulkChannel = bulkChannel,
+                bulkSize = 3,
+                bulkDelayMs = 10,
+                clock = clock,
             )
 
             try {
@@ -176,11 +176,12 @@ class BulkSinkActorTests : StringSpec({
             val channel = Channel<SinkMsg<Unit>>()
             var retries = 0
             val sink = BulkSinkActor(
-                "buffering",
-                this,
-                "<test>",
-                channel,
-                {
+                coroutineName = "buffering",
+                coroutineScope = this,
+                connectorName = "<test>",
+                taskId = 0,
+                channel = channel,
+                sendBulk = {
                     retries++
                     when (retries) {
                         1 -> SendBulkResult.IOError(IOException("io error"))
@@ -220,11 +221,12 @@ class BulkSinkActorTests : StringSpec({
             val channel = Channel<SinkMsg<Unit>>()
             var retries = 0
             val sink = BulkSinkActor(
-                "sink",
-                this,
-                "<test>",
-                channel,
-                {
+                coroutineName = "sink",
+                coroutineScope = this,
+                connectorName = "<test>",
+                taskId = 0,
+                channel = channel,
+                sendBulk = {
                     retries++
                     when (retries) {
                         1 -> {
@@ -274,11 +276,12 @@ class BulkSinkActorTests : StringSpec({
             val channel = Channel<SinkMsg<Int>>()
             var retries = 0
             val sink = BulkSinkActor(
-                "sink",
-                this,
-                "<test>",
-                channel,
-                {
+                coroutineName = "sink",
+                coroutineScope = this,
+                connectorName = "<test>",
+                taskId = 0,
+                channel = channel,
+                sendBulk = {
                     retries++
                     when (retries) {
                         1 -> SendBulkResult.Success(

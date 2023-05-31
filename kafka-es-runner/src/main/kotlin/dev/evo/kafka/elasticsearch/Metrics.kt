@@ -11,9 +11,11 @@ object Metrics : PrometheusMetrics() {
 
 class KafkaEsLabels : LabelSet() {
     var connectorName by label("connector_name")
+    var taskId by label("task_id")
 
-    fun populate(connectorName: String) {
+    fun populate(connectorName: String, taskId: Int) {
         this.connectorName = connectorName
+        this.taskId = taskId.toString()
     }
 }
 
@@ -49,18 +51,20 @@ class KafkaEsMetrics : PrometheusMetrics(), MetricsUpdater {
         labelsFactory = ::KafkaEsLabels,
     )
 
-    override suspend fun onSuccess(connectorName: String, sendBulkResult: SendBulkResult.Success<*, *>) {
-        bulksCount.inc { populate(connectorName) }
-        bulksTotalTime.add(sendBulkResult.totalTimeMs) { populate(connectorName) }
-        bulksTookTime.add(sendBulkResult.tookTimeMs) { populate(connectorName) }
-        bulkActionsCount.add(sendBulkResult.successActionsCount) { populate(connectorName) }
+    override suspend fun onSuccess(
+        connectorName: String, taskId: Int, sendBulkResult: SendBulkResult.Success<*, *>
+    ) {
+        bulksCount.inc { populate(connectorName, taskId) }
+        bulksTotalTime.add(sendBulkResult.totalTimeMs) { populate(connectorName, taskId) }
+        bulksTookTime.add(sendBulkResult.tookTimeMs) { populate(connectorName, taskId) }
+        bulkActionsCount.add(sendBulkResult.successActionsCount) { populate(connectorName, taskId) }
     }
 
-    override suspend fun onError(connectorName: String) {
-        bulksErrorCount.inc { populate(connectorName) }
+    override suspend fun onError(connectorName: String, taskId: Int) {
+        bulksErrorCount.inc { populate(connectorName, taskId) }
     }
 
-    override suspend fun onTimeout(connectorName: String) {
-        bulksTimeoutCount.inc { populate(connectorName) }
+    override suspend fun onTimeout(connectorName: String, taskId: Int) {
+        bulksTimeoutCount.inc { populate(connectorName, taskId) }
     }
 }
