@@ -208,9 +208,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             throw exc
         }
 
-        if (records.isNotEmpty()) {
-            logger.debug("Received ${records.size} records")
-        }
+        logger.debug("Received ${records.size} records")
 
         val actions = preprocessRecords(records)
         processedRecords += actions.size
