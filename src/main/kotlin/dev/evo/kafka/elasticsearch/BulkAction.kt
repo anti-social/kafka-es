@@ -6,6 +6,7 @@ import com.google.protobuf.util.JsonFormat
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.descriptors.element
@@ -244,7 +245,20 @@ interface BulkSource {
 }
 
 /**
- * Represents JSON source.
+ * Represents JSON source that is Serializable.
+ * Can be use in transformations to produce a Serializable object.
+ */
+data class SerializableSource<T>(val source: T, val serializer: SerializationStrategy<T>) : BulkSource {
+    private val json = Json.Default
+
+    override fun write(writer: Appendable) {
+        writer.append(json.encodeToString(serializer, source))
+    }
+
+}
+
+/**
+ * Represents JSON source with JsonElement.
  */
 data class JsonSource(val source: JsonElement) : BulkSource {
     private val json = Json.Default
