@@ -20,5 +20,5 @@ object Versions {
 
     // Runner
     const val clikt = "3.5.0"
-    const val prometheusKt = "0.2.0"
+    const val prometheusKt = "0.2.3"
 }
