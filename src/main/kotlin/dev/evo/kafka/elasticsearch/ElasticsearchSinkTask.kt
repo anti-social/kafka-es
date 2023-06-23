@@ -3,6 +3,9 @@ package dev.evo.kafka.elasticsearch
 import dev.evo.elasticmagic.serde.kotlinx.JsonSerde
 import dev.evo.elasticmagic.transport.ElasticsearchKtorTransport
 import dev.evo.elasticmagic.transport.ElasticsearchTransport
+import dev.evo.elasticmagic.transport.PlainRequest
+import dev.evo.elasticmagic.transport.PlainResponse
+import dev.evo.elasticmagic.transport.Tracker
 
 import dev.evo.kafka.castOrFail
 
@@ -18,6 +21,7 @@ import org.apache.kafka.connect.runtime.ConnectorConfig
 import org.apache.kafka.connect.runtime.WorkerConfig
 import org.apache.kafka.connect.sink.SinkRecord
 import org.apache.kafka.connect.sink.SinkTask
+import org.apache.kafka.connect.util.LoggingContext
 
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
@@ -37,8 +41,7 @@ import kotlinx.coroutines.slf4j.MDCContext
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 import kotlin.text.toIntOrNull
-import org.apache.kafka.connect.util.LoggingContext
-
+import kotlin.time.Duration
 
 /**
  * Sink task lifecycle:
@@ -61,9 +64,10 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         job + Dispatchers.Default + MDCContext() + exceptionHandler
 
     private var esTestTransport: ElasticsearchTransport? = null
-    private lateinit var esTransport: ElasticsearchTransport
 
     private lateinit var name: String
+    private lateinit var esUrl: List<String>
+    private var compressionEnabled = Config.COMPRESSION_ENABLED_DEFAULT
     private var index: String? = null
     private var topicToIndexMap = emptyMap<String, String>()
     private var flushTimeoutMs = WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_DEFAULT
@@ -111,6 +115,8 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             logger.debug("Starting")
 
             index = config.getString(Config.INDEX)
+            esUrl = config.getList(Config.CONNECTION_URL)
+            compressionEnabled = config.getBoolean(Config.COMPRESSION_ENABLED)
             topicToIndexMap = config.getMap(Config.TOPIC_INDEX_MAP)
             // 90% from the offset commit timeout
             flushTimeoutMs = 90 * config.getLong(WorkerConfig.OFFSET_COMMIT_TIMEOUT_MS_CONFIG) / 100
@@ -123,24 +129,6 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             keepAliveTimeMs = config.getLong(Config.KEEP_ALIVE_TIME)
             retryIntervalMs = config.getLong(Config.RETRY_INTERVAL)
             maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
-
-            val esTestTransport = this.esTestTransport
-            esTransport = if (esTestTransport != null) {
-                esTestTransport
-            } else {
-                val esUrl = config.getList(Config.CONNECTION_URL)
-                MDC.put("es_url", esUrl.joinToString(",", prefix = "[", postfix = "]"))
-                logger.info("Initializing Elasticsearch client for cluster: $esUrl")
-                // TODO: Mutliple endpoint urls
-                ElasticsearchKtorTransport(esUrl[0], CIO.create {
-                    requestTimeout = requestTimeoutMs
-                    if (keepAliveTimeMs >= 0) {
-                        endpoint.keepAliveTime = keepAliveTimeMs
-                    }
-                }) {
-                    gzipRequests = config.getBoolean(Config.COMPRESSION_ENABLED)
-                }
-            }
         } catch (e: ConfigException) {
             throw ConnectException(
                 "Couldn't start ${this::class.java} due to configuration error", e
@@ -158,12 +146,6 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     override fun open(partitions: MutableCollection<TopicPartition>) {
         logger.info("Opening")
 
-        lastFlushResult = ElasticsearchSink.FlushResult.Ok
-        processedRecords = 0
-
-        val esBulkSender = ElasticsearchBulkSender(
-            esTransport, requestTimeoutMs
-        )
         val loggingConnectorContextValue = MDC.get(LoggingContext.CONNECTOR_CONTEXT)?.trim() ?: "[$name]"
         // Example of kafka connect connector logging context:
         // [my-connector|task-3]
@@ -173,6 +155,45 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             .getOrNull(1)
             ?.removePrefix("task-")
             ?.toIntOrNull() ?: 0
+
+        lastFlushResult = ElasticsearchSink.FlushResult.Ok
+        processedRecords = 0
+
+        val metricsUpdater = metricsUpdater.get()
+
+        val esTestTransport = this.esTestTransport
+        val esTransport = if (esTestTransport != null) {
+            esTestTransport
+        } else {
+            MDC.put("es_url", esUrl.joinToString(",", prefix = "[", postfix = "]"))
+            logger.info("Initializing Elasticsearch client for cluster: $esUrl")
+            // TODO: Mutliple endpoint urls
+            ElasticsearchKtorTransport(esUrl[0], CIO.create {
+                requestTimeout = requestTimeoutMs
+                if (keepAliveTimeMs >= 0) {
+                    endpoint.keepAliveTime = keepAliveTimeMs
+                }
+            }) {
+                gzipRequests = compressionEnabled
+
+                if (metricsUpdater != null) {
+                    trackers = listOf(
+                        {
+                            object : Tracker {
+                                override suspend fun onRequest(request: PlainRequest) {
+                                    metricsUpdater.onSend(name, taskId, request.content.size.toLong())
+                                }
+
+                                override suspend fun onResponse(responseResult: Result<PlainResponse>, duration: Duration) {}
+                            }
+                        },
+                    )
+                }
+            }
+        }
+        val esBulkSender = ElasticsearchBulkSender(
+            esTransport, requestTimeoutMs
+        )
         sink = ElasticsearchSink(
             loggingConnectorContextValue = loggingConnectorContextValue,
             coroutineScope = this,
@@ -192,7 +213,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                     delayBetweenRequestsMs = delayBetweenRequestsMs,
                     minRetryDelayMs = retryIntervalMs,
                     maxRetryDelayMs = maxRetryIntervalMs,
-                    metricsUpdater = metricsUpdater.get(),
+                    metricsUpdater = metricsUpdater,
                 ).job
             }
         )

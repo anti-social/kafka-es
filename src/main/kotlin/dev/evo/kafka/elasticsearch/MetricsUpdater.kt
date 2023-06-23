@@ -1,6 +1,10 @@
 package dev.evo.kafka.elasticsearch
 
 interface MetricsUpdater {
+    suspend fun onSend(
+        connectorName: String, taskId: Int, bytesSent: Long
+    )
+
     suspend fun onSuccess(
         connectorName: String, taskId: Int, sendBulkResult: SendBulkResult.Success<*, *>
     )

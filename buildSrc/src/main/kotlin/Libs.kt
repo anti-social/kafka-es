@@ -11,7 +11,7 @@ object Versions {
     // Libraries
     const val kafka = "3.3.1"
     const val protobuf = "3.23.0"
-    const val elasticmagic = "0.0.20"
+    const val elasticmagic = "0.0.24"
     const val ktor = "2.1.2"
     const val slf4j = "1.7.36"
 

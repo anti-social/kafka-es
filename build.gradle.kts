@@ -151,6 +151,7 @@ tasks {
         useJUnitPlatform()
         outputs.upToDateWhen { false }
     }
+
     val jacocoTestReport by getting(JacocoReport::class) {
         reports {
             html.required.set(true)

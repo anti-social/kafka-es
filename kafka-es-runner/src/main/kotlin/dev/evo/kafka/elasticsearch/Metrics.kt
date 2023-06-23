@@ -40,6 +40,11 @@ class KafkaEsMetrics : PrometheusMetrics(), MetricsUpdater {
         "Number of bulk actions successfully sent to Elasticsearch",
         labelsFactory = ::KafkaEsLabels,
     )
+    val bulkBytesSent by counterLong(
+        "bulk_bytes_sent",
+        "Number of bytes sent to Elasticsearch",
+        labelsFactory = ::KafkaEsLabels,
+    )
     val bulksErrorCount by counterLong(
         "bulk_requests_error_count",
         "Number of failed bulk requests",
@@ -50,6 +55,12 @@ class KafkaEsMetrics : PrometheusMetrics(), MetricsUpdater {
         "Number of timed out bulk requests",
         labelsFactory = ::KafkaEsLabels,
     )
+
+    override suspend fun onSend(
+        connectorName: String, taskId: Int, bytesSent: Long
+    ) {
+        bulkBytesSent.add(bytesSent)
+    }
 
     override suspend fun onSuccess(
         connectorName: String, taskId: Int, sendBulkResult: SendBulkResult.Success<*, *>
