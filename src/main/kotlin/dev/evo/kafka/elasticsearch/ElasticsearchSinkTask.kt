@@ -8,6 +8,7 @@ import dev.evo.elasticmagic.transport.PlainResponse
 import dev.evo.elasticmagic.transport.Tracker
 
 import dev.evo.kafka.castOrFail
+import dev.evo.kafka.WatchDog
 
 import io.ktor.client.engine.cio.CIO
 
@@ -65,6 +66,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
 
     private var esTestTransport: ElasticsearchTransport? = null
 
+    private var taskId: Int = -1
     private lateinit var name: String
     private lateinit var esUrl: List<String>
     private var compressionEnabled = Config.COMPRESSION_ENABLED_DEFAULT
@@ -80,6 +82,9 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private var bulkQueueSize = Config.QUEUE_SIZE_DEFAULT
     private var retryIntervalMs = Config.RETRY_INTERVAL_DEFAULT
     private var maxRetryIntervalMs = Config.MAX_RETRY_INTERVAL_DEFAULT
+    private var stuckTimeoutMs = Config.TASK_STUCK_TIMEOUT_DEFAULT
+    private val isWatchDogActive
+        get() = taskId >=0 && stuckTimeoutMs > 0
 
     private lateinit var sink: ElasticsearchSink<BulkAction>
     private var processedRecords = 0L
@@ -129,6 +134,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             keepAliveTimeMs = config.getLong(Config.KEEP_ALIVE_TIME)
             retryIntervalMs = config.getLong(Config.RETRY_INTERVAL)
             maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
+            stuckTimeoutMs = config.getLong(Config.TASK_STUCK_TIMEOUT)
         } catch (e: ConfigException) {
             throw ConnectException(
                 "Couldn't start ${this::class.java} due to configuration error", e
@@ -149,7 +155,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         val loggingConnectorContextValue = MDC.get(LoggingContext.CONNECTOR_CONTEXT)?.trim() ?: "[$name]"
         // Example of kafka connect connector logging context:
         // [my-connector|task-3]
-        val taskId = loggingConnectorContextValue
+        taskId = loggingConnectorContextValue
             .trim('[', ']')
             .split('|', limit = 2)
             .getOrNull(1)
@@ -217,10 +223,23 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 ).job
             }
         )
+
+        if (isWatchDogActive) {
+            WatchDog.register(
+                name,
+                taskId,
+                stuckTimeoutMs = stuckTimeoutMs,
+                retryTimeoutMs = stuckTimeoutMs / 6
+            )
+        }
     }
 
     override fun close(partitions: MutableCollection<TopicPartition>) {
         logger.info("Closing")
+
+        if (isWatchDogActive) {
+            WatchDog.unregister(name, taskId)
+        }
 
         coroutineContext.job.cancelChildren()
         runBlocking {
@@ -239,6 +258,10 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
         }
 
         logger.debug("Received ${records.size} records")
+
+        if (isWatchDogActive && records.isNotEmpty()) {
+            WatchDog.kick(name, taskId)
+        }
 
         val actions = preprocessRecords(records)
         processedRecords += actions.size
