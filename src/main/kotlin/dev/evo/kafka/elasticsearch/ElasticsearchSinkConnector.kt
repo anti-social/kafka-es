@@ -68,6 +68,8 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val RETRY_INTERVAL_DEFAULT = 30_000L
         val MAX_RETRY_INTERVAL = "max.retry.interval"
         val MAX_RETRY_INTERVAL_DEFAULT = 300_000L
+        val TASK_STUCK_TIMEOUT = "task.stuck.timeout.ms"
+        val TASK_STUCK_TIMEOUT_DEFAULT = 0L
         val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include.default.values"
         val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = true
 
@@ -166,6 +168,13 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                 MAX_RETRY_INTERVAL_DEFAULT,
                 ConfigDef.Importance.MEDIUM,
                 "Maximum interval between retries in seconds."
+            )
+            CONFIG.define(
+                TASK_STUCK_TIMEOUT,
+                ConfigDef.Type.LONG,
+                TASK_STUCK_TIMEOUT_DEFAULT,
+                ConfigDef.Importance.MEDIUM,
+                "Timeout after which a task is considered stuck. By default 0 which means task stuck is not tracked"
             )
             CONFIG.define(
                 PROTOBUF_INCLUDE_DEFAULT_VALUES,
