@@ -59,7 +59,7 @@ class KafkaEsMetrics : PrometheusMetrics(), MetricsUpdater {
     override suspend fun onSend(
         connectorName: String, taskId: Int, bytesSent: Long
     ) {
-        bulkBytesSent.add(bytesSent)
+        bulkBytesSent.add(bytesSent) { populate(connectorName, taskId) }
     }
 
     override suspend fun onSuccess(
