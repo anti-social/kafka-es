@@ -1,10 +1,9 @@
 import com.google.protobuf.gradle.protobuf
-
-import java.nio.file.Paths
-
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.gradle.jvm.tasks.Jar
-
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.nio.file.Paths
 
 plugins {
     java
@@ -147,11 +146,6 @@ dependencies {
 }
 
 tasks {
-    val test by getting(Test::class) {
-        useJUnitPlatform()
-        outputs.upToDateWhen { false }
-    }
-
     val jacocoTestReport by getting(JacocoReport::class) {
         reports {
             html.required.set(true)
@@ -175,6 +169,26 @@ val compileKotlin by tasks.getting(KotlinCompile::class) {
 }
 val compileTestKotlin by tasks.getting(KotlinCompile::class) {
     dependsOn("generateTestProto")
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
+
+    outputs.upToDateWhen { false }
+
+    testLogging {
+        events = mutableSetOf<TestLogEvent>().apply {
+            add(TestLogEvent.FAILED)
+            if (project.hasProperty("showPassedTests")) {
+                add(TestLogEvent.PASSED)
+            }
+            if (project.hasProperty("showTestsOutput")) {
+                add(TestLogEvent.STANDARD_OUT)
+                add(TestLogEvent.STANDARD_ERROR)
+            }
+        }
+        exceptionFormat = TestExceptionFormat.FULL
+    }
 }
 
 protobuf {
