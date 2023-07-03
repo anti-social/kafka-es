@@ -83,6 +83,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
     private var retryIntervalMs = Config.RETRY_INTERVAL_DEFAULT
     private var maxRetryIntervalMs = Config.MAX_RETRY_INTERVAL_DEFAULT
     private var stuckTimeoutMs = Config.TASK_STUCK_TIMEOUT_DEFAULT
+    private var stuckBackoffTimeoutMs = Config.TASK_STUCK_BACKOFF_TIMEOUT_DEFAULT
     private val isWatchDogActive
         get() = taskId >=0 && stuckTimeoutMs > 0
 
@@ -135,6 +136,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
             retryIntervalMs = config.getLong(Config.RETRY_INTERVAL)
             maxRetryIntervalMs = config.getLong(Config.MAX_RETRY_INTERVAL)
             stuckTimeoutMs = config.getLong(Config.TASK_STUCK_TIMEOUT)
+            stuckBackoffTimeoutMs = config.getLong(Config.TASK_STUCK_BACKOFF_TIMEOUT)
         } catch (e: ConfigException) {
             throw ConnectException(
                 "Couldn't start ${this::class.java} due to configuration error", e
@@ -229,7 +231,7 @@ class ElasticsearchSinkTask() : SinkTask(), CoroutineScope {
                 name,
                 taskId,
                 stuckTimeoutMs = stuckTimeoutMs,
-                retryTimeoutMs = stuckTimeoutMs / 6
+                backoffTimeoutMs = stuckBackoffTimeoutMs,
             )
         }
     }

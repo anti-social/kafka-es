@@ -19,10 +19,11 @@ object WatchDog {
 
     private data class TaskValue(
         var timeLeftMs: Long,
+        var retry: Int = 0,
         // A timeout after which a task is considered stuck
         val stuckTimeoutMs: Long,
         // A timeout for stuck tasks to restart them again
-        val retryTimeoutMs: Long,
+        val backoffTimeoutMs: Long,
     )
 
     private val restApiBaseUrl = System.getenv("KAFKA_CONNECT_API_URL") ?: "http://localhost:8083"
@@ -34,7 +35,7 @@ object WatchDog {
 
     init {
         startWatchDog()
-        startRestarter()
+        startTaskRestarter()
     }
 
     private fun startWatchDog() {
@@ -53,7 +54,10 @@ object WatchDog {
                             if (!channel.offer(key)) {
                                 logger.warn("Watch dog's channel is full")
                             }
-                            value.timeLeftMs = value.retryTimeoutMs
+                            value.timeLeftMs = (value.backoffTimeoutMs * Math.pow(2.0, value.retry.toDouble()))
+                                .toLong()
+                                .coerceAtMost(value.stuckTimeoutMs)
+                            value.retry++
                         }
                         value
                     }
@@ -64,7 +68,7 @@ object WatchDog {
         thread.start()
     }
 
-    private fun startRestarter() {
+    private fun startTaskRestarter() {
         val client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build()
@@ -95,13 +99,13 @@ object WatchDog {
         thread.start()
     }
 
-    fun register(connector: String, taskId: Int, stuckTimeoutMs: Long, retryTimeoutMs: Long) {
+    fun register(connector: String, taskId: Int, stuckTimeoutMs: Long, backoffTimeoutMs: Long) {
         registeredTasks.putIfAbsent(
             TaskKey(connector, taskId),
             TaskValue(
                 timeLeftMs = stuckTimeoutMs,
                 stuckTimeoutMs = stuckTimeoutMs,
-                retryTimeoutMs = retryTimeoutMs,
+                backoffTimeoutMs = if (backoffTimeoutMs > 0) backoffTimeoutMs else stuckTimeoutMs / 4,
             )
         )
     }
@@ -113,7 +117,7 @@ object WatchDog {
     fun kick(connector: String, taskId: Int) {
         registeredTasks.computeIfPresent(
             TaskKey(connector, taskId),
-            { key, value ->
+            { _, value ->
                 value.timeLeftMs = value.stuckTimeoutMs
                 value
             }

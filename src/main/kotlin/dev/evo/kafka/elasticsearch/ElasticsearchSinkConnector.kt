@@ -70,6 +70,8 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
         val MAX_RETRY_INTERVAL_DEFAULT = 300_000L
         val TASK_STUCK_TIMEOUT = "task.stuck.timeout.ms"
         val TASK_STUCK_TIMEOUT_DEFAULT = 0L
+        val TASK_STUCK_BACKOFF_TIMEOUT = "task.stuck.backoff.timeout.ms"
+        val TASK_STUCK_BACKOFF_TIMEOUT_DEFAULT = 0L
         val PROTOBUF_INCLUDE_DEFAULT_VALUES = "protobuf.include.default.values"
         val PROTOBUF_INCLUDE_DEFAULT_VALUES_DEFAULT = true
 
@@ -175,6 +177,13 @@ class Config(props: MutableMap<String, String>) : AbstractConfig(CONFIG, props) 
                 TASK_STUCK_TIMEOUT_DEFAULT,
                 ConfigDef.Importance.MEDIUM,
                 "Timeout after which a task is considered stuck. By default 0 which means task stuck is not tracked"
+            )
+            CONFIG.define(
+                TASK_STUCK_BACKOFF_TIMEOUT,
+                ConfigDef.Type.LONG,
+                TASK_STUCK_BACKOFF_TIMEOUT_DEFAULT,
+                ConfigDef.Importance.MEDIUM,
+                "Backoff timeout for a stuck tusk. By default is one fourth of the stuck timeout"
             )
             CONFIG.define(
                 PROTOBUF_INCLUDE_DEFAULT_VALUES,
