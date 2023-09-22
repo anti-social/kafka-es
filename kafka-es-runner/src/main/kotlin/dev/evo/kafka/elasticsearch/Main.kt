@@ -45,6 +45,7 @@ sealed class KafkaConnectCmd(
                 Netty,
                 port = metricsPort,
                 module = {
+                    Metrics.hiccups.startTracking(this)
                     metricsModule(MetricsFeature(Metrics))
                 }
             )

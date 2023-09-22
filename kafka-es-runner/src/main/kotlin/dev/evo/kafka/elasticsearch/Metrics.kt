@@ -2,10 +2,12 @@ package dev.evo.kafka.elasticsearch
 
 import dev.evo.prometheus.LabelSet
 import dev.evo.prometheus.PrometheusMetrics
+import dev.evo.prometheus.hiccup.HiccupMetrics
 import dev.evo.prometheus.jvm.DefaultJvmMetrics
 
 object Metrics : PrometheusMetrics() {
     val jvm by submetrics(DefaultJvmMetrics())
+    val hiccups by submetrics(HiccupMetrics())
     val kafkaEsMetrics by submetrics("kafka_es", KafkaEsMetrics())
 }
 
