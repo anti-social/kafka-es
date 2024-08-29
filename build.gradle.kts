@@ -14,7 +14,7 @@ plugins {
     kotlin("plugin.serialization") version Versions.kotlin
     id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
     id("com.google.protobuf") version "0.9.3"
-    id("org.ajoberstar.grgit") version "4.1.0"
+    id("org.ajoberstar.grgit") version "4.1.1"
 }
 
 group = "dev.evo.kafka-es"
