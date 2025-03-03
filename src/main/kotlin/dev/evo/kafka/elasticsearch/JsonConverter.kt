@@ -14,10 +14,14 @@ import org.apache.kafka.connect.storage.Converter
 class JsonConverter : Converter {
     private val json = Json.Default
     private lateinit var actionHeaderKey: String
+    private lateinit var tagHeaderKey: String
+    private lateinit var tagConfigValue: String;
 
     class Config(props: MutableMap<String, *>) : AbstractConfig(CONFIG, props) {
         companion object {
             val ACTION_HEADER_KEY = "action.header.key"
+            val TAG_HEADER_KEY = "tag.header.key"
+            val VALUE_CONVERTER_TAG = "value.converter.tag"
 
             val CONFIG = ConfigDef().apply {
                 define(
@@ -27,14 +31,31 @@ class JsonConverter : Converter {
                     ConfigDef.Importance.LOW,
                     "Header key where action meta information will be stored."
                 )
-
+                define(
+                    TAG_HEADER_KEY,
+                    ConfigDef.Type.STRING,
+                    "tag",
+                    ConfigDef.Importance.LOW,
+                    "Header key where message tag will be stored."
+                )
+                define(
+                    VALUE_CONVERTER_TAG,
+                    ConfigDef.Type.STRING,
+                    "",
+                    ConfigDef.Importance.LOW,
+                    "Tag for the value converter. If specified, only actions with the same tag header will be processed by this converter. " +
+                            "You can specify different tag header name in 'tag.header.key' property."
+                )
             }
+
         }
     }
 
     override fun configure(configs: MutableMap<String, *>, isKey: Boolean) {
         val config = Config(configs)
         actionHeaderKey = config.getString(Config.ACTION_HEADER_KEY)
+        tagHeaderKey = config.getString(Config.TAG_HEADER_KEY)
+        tagConfigValue = config.getString(Config.VALUE_CONVERTER_TAG)
     }
 
     override fun fromConnectData(topic: String, schema: Schema?, value: Any?): ByteArray? {
@@ -46,9 +67,27 @@ class JsonConverter : Converter {
             .toByteArray(Charsets.UTF_8)
     }
 
+    /**
+     * Skip message if value.converter.tag is configured and either
+     * - tag header does not present
+     * - tag header present and does not match value.converter.tag
+     */
+    private fun shouldSkipMessage(headers: Headers): Boolean {
+        if (tagConfigValue.isEmpty()) {
+            return false
+        }
+        val tagValue = headers.lastHeader(tagHeaderKey)?.value()?.toString(Charsets.UTF_8)
+        return tagValue != tagConfigValue
+    }
+
     override fun toConnectData(topic: String, headers: Headers?, value: ByteArray?): SchemaAndValue {
         val actionHeader = headers?.lastHeader(actionHeaderKey)
             ?: throw DataException("Headers must contain [$actionHeaderKey] key")
+
+        if (shouldSkipMessage(headers)) {
+            return SchemaAndValue(null, null)
+        }
+
         val bulkAction = try {
             val meta = json.decodeFromString(
                 BulkMetaSerializer,
