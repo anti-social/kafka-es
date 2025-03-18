@@ -68,15 +68,19 @@ class JsonConverter : Converter {
     }
 
     /**
-     * Skip message if value.converter.tag is configured and either
-     * - tag header does not present
-     * - one or more tag headers present and none of them match value.converter.tag
+     * Skip message if value.converter.tag is set in config, tag header is present and does not match config value.
+     *
+     * If not "tag" header present, message will be processed as usual. Such default behavior is safe and won't break
+     * existing messages.
      */
     private fun shouldSkipMessage(headers: Headers): Boolean {
         if (tagConfigValue.isEmpty()) {
             return false
         }
         val tags = headers.headers(tagHeaderKey).map { it.value().toString(Charsets.UTF_8) }.toSet()
+        if (tags.isEmpty()) {
+            return false
+        }
         return !tags.contains(tagConfigValue)
     }
 

@@ -254,7 +254,7 @@ class JsonConverterTests : StringSpec({
         connectData.value() shouldBe null
     }
 
-    "skip message if no tag header" {
+    "handle message if no tag header" {
         val converter = JsonConverter().apply {
             configure(mutableMapOf<String, Any>(
                 "value.converter.tag" to "foo",
@@ -271,6 +271,15 @@ class JsonConverterTests : StringSpec({
             "<test>", headers, """{"name": "Test"}""".toByteArray()
         )
         connectData.schema() shouldBe null
-        connectData.value() shouldBe null
+        val action = connectData.value() as BulkAction
+        action shouldBe BulkAction.Index(
+            id = "123",
+            type = "_doc",
+            index = "test",
+            routing = "456",
+            source = JsonSource(buildJsonObject {
+                put("name", "Test")
+            })
+        )
     }
 })
