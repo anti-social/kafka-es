@@ -9,19 +9,14 @@ import org.apache.kafka.common.header.Headers
 import org.apache.kafka.connect.data.Schema
 import org.apache.kafka.connect.data.SchemaAndValue
 import org.apache.kafka.connect.errors.DataException
-import org.apache.kafka.connect.storage.Converter
 
-class JsonConverter : Converter {
+class JsonConverter : BaseConverter() {
     private val json = Json.Default
     private lateinit var actionHeaderKey: String
-    private lateinit var tagHeaderKey: String
-    private lateinit var tagConfigValue: String;
 
     class Config(props: MutableMap<String, *>) : AbstractConfig(CONFIG, props) {
         companion object {
             val ACTION_HEADER_KEY = "action.header.key"
-            val TAG_HEADER_KEY = "tag.header.key"
-            val VALUE_CONVERTER_TAG = "value.converter.tag"
 
             val CONFIG = ConfigDef().apply {
                 define(
@@ -54,8 +49,8 @@ class JsonConverter : Converter {
     override fun configure(configs: MutableMap<String, *>, isKey: Boolean) {
         val config = Config(configs)
         actionHeaderKey = config.getString(Config.ACTION_HEADER_KEY)
-        tagHeaderKey = config.getString(Config.TAG_HEADER_KEY)
-        tagConfigValue = config.getString(Config.VALUE_CONVERTER_TAG)
+        tagHeaderKey = config.getString(TAG_HEADER_KEY)
+        tagConfigValue = config.getString(VALUE_CONVERTER_TAG)
     }
 
     override fun fromConnectData(topic: String, schema: Schema?, value: Any?): ByteArray? {
@@ -67,22 +62,6 @@ class JsonConverter : Converter {
             .toByteArray(Charsets.UTF_8)
     }
 
-    /**
-     * Skip message if value.converter.tag is set in config, tag header is present and does not match config value.
-     *
-     * If not "tag" header present, message will be processed as usual. Such default behavior is safe and won't break
-     * existing messages.
-     */
-    private fun shouldSkipMessage(headers: Headers): Boolean {
-        if (tagConfigValue.isEmpty()) {
-            return false
-        }
-        val tags = headers.headers(tagHeaderKey).map { it.value().toString(Charsets.UTF_8) }.toSet()
-        if (tags.isEmpty()) {
-            return false
-        }
-        return !tags.contains(tagConfigValue)
-    }
 
     override fun toConnectData(topic: String, headers: Headers?, value: ByteArray?): SchemaAndValue {
         val actionHeader = headers?.lastHeader(actionHeaderKey)
