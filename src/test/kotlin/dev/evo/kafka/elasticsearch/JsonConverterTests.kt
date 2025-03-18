@@ -145,6 +145,37 @@ class JsonConverterTests : StringSpec({
         )
     }
 
+    "convert message if multiple tag headers present" {
+        val converter = JsonConverter().apply {
+            configure(mutableMapOf<String, Any>(
+                "value.converter.tag" to "foo",
+                "tag.header.key" to "tag",
+            ), false)
+        }
+        val headers = RecordHeaders().apply {
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
+            add("tag", "foo".toByteArray())
+            add("tag", "foo1".toByteArray())
+        }
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"name": "Test"}""".toByteArray()
+        )
+        connectData.schema() shouldBe null
+        val action = connectData.value() as BulkAction
+        action shouldBe BulkAction.Index(
+            id = "123",
+            type = "_doc",
+            index = "test",
+            routing = "456",
+            source = JsonSource(buildJsonObject {
+                put("name", "Test")
+            })
+        )
+    }
+
     "convert message if value.converter.tag not configured" {
         val converter = JsonConverter().apply {
             configure(mutableMapOf<String, Any>(), false)

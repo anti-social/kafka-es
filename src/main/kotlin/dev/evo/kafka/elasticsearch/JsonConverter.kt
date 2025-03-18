@@ -70,14 +70,14 @@ class JsonConverter : Converter {
     /**
      * Skip message if value.converter.tag is configured and either
      * - tag header does not present
-     * - tag header present and does not match value.converter.tag
+     * - one or more tag headers present and none of them match value.converter.tag
      */
     private fun shouldSkipMessage(headers: Headers): Boolean {
         if (tagConfigValue.isEmpty()) {
             return false
         }
-        val tagValue = headers.lastHeader(tagHeaderKey)?.value()?.toString(Charsets.UTF_8)
-        return tagValue != tagConfigValue
+        val tags = headers.headers(tagHeaderKey).map { it.value().toString(Charsets.UTF_8) }.toSet()
+        return !tags.contains(tagConfigValue)
     }
 
     override fun toConnectData(topic: String, headers: Headers?, value: ByteArray?): SchemaAndValue {
