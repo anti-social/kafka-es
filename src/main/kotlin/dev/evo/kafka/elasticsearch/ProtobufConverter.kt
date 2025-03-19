@@ -13,36 +13,22 @@ import org.apache.kafka.common.header.Headers
 import org.apache.kafka.connect.data.Schema
 import org.apache.kafka.connect.data.SchemaAndValue
 import org.apache.kafka.connect.errors.DataException
-import org.apache.kafka.connect.storage.Converter
 
-class ProtobufConverter : Converter {
-    private var actionHeaderKey: String = Config.DEFAULT_ACTION_HEADER
+class ProtobufConverter : BaseConverter() {
     private val serializer = ProtobufSerializer()
     private val deserializer = ProtobufDeserializer()
 
-    class Config(props: MutableMap<String, *>) :
-            AbstractConfig(CONFIG, props)
-    {
+    class Config(props: MutableMap<String, *>) : AbstractConfig(CONFIG, props) {
         companion object {
             val PROTOBUF_CLASS = "protobuf.class"
-            val ACTION_HEADER_KEY = "action.header.key"
-            val DEFAULT_ACTION_HEADER = "action"
 
-            val CONFIG = ConfigDef().apply {
+            val CONFIG = baseConfigDef().apply {
                 define(
                     PROTOBUF_CLASS,
                     ConfigDef.Type.CLASS,
                     ConfigDef.Importance.HIGH,
                     "The full path to the protobuf class."
                 )
-                define(
-                    ACTION_HEADER_KEY,
-                    ConfigDef.Type.STRING,
-                    DEFAULT_ACTION_HEADER,
-                    ConfigDef.Importance.LOW,
-                    "Header key where action meta information will be stored."
-                )
-
             }
         }
     }
@@ -50,7 +36,9 @@ class ProtobufConverter : Converter {
     override fun configure(configs: MutableMap<String, *>, isKey: Boolean) {
         val config = Config(configs)
 
-        actionHeaderKey = config.getString(Config.ACTION_HEADER_KEY)
+        actionHeaderKey = config.getString(ACTION_HEADER_KEY)
+        tagHeaderKey = config.getString(TAG_HEADER_KEY)
+        tagConfigValue = config.getString(VALUE_CONVERTER_TAG)
 
         serializer.configure(configs, isKey)
         deserializer.configure(configs, isKey)
@@ -71,6 +59,10 @@ class ProtobufConverter : Converter {
         val actionHeader = headers?.lastHeader(actionHeaderKey)
             ?: throw DataException("Headers must contain [$actionHeaderKey] key")
         val actionMeta = BulkActionProto.BulkAction.parseFrom(actionHeader.value())
+
+        if (shouldSkipMessage(headers)) {
+            return SchemaAndValue(null, null)
+        }
 
         val index = actionMeta.index.ifEmpty { null }
         val type = actionMeta.type.ifEmpty { null }

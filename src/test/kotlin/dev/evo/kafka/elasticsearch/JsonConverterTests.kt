@@ -114,4 +114,172 @@ class JsonConverterTests : StringSpec({
             })
         )
     }
+
+    "convert message if tag header present and same" {
+        val converter = JsonConverter().apply {
+            configure(mutableMapOf<String, Any>(
+                "value.converter.tag" to "foo",
+                "tag.header.key" to "tag",
+            ), false)
+        }
+        val headers = RecordHeaders().apply {
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
+            add("tag", "foo".toByteArray())
+        }
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"name": "Test"}""".toByteArray()
+        )
+        connectData.schema() shouldBe null
+        val action = connectData.value() as BulkAction
+        action shouldBe BulkAction.Index(
+            id = "123",
+            type = "_doc",
+            index = "test",
+            routing = "456",
+            source = JsonSource(buildJsonObject {
+                put("name", "Test")
+            })
+        )
+    }
+
+    "convert message if multiple tag headers present" {
+        val converter = JsonConverter().apply {
+            configure(mutableMapOf<String, Any>(
+                "value.converter.tag" to "foo",
+                "tag.header.key" to "tag",
+            ), false)
+        }
+        val headers = RecordHeaders().apply {
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
+            add("tag", "foo".toByteArray())
+            add("tag", "foo1".toByteArray())
+        }
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"name": "Test"}""".toByteArray()
+        )
+        connectData.schema() shouldBe null
+        val action = connectData.value() as BulkAction
+        action shouldBe BulkAction.Index(
+            id = "123",
+            type = "_doc",
+            index = "test",
+            routing = "456",
+            source = JsonSource(buildJsonObject {
+                put("name", "Test")
+            })
+        )
+    }
+
+    "convert message if value.converter.tag not configured" {
+        val converter = JsonConverter().apply {
+            configure(mutableMapOf<String, Any>(), false)
+        }
+        val headers = RecordHeaders().apply {
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
+            add("tag", "foo".toByteArray())
+        }
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"name": "Test"}""".toByteArray()
+        )
+        connectData.schema() shouldBe null
+        val action = connectData.value() as BulkAction
+        action shouldBe BulkAction.Index(
+            id = "123",
+            type = "_doc",
+            index = "test",
+            routing = "456",
+            source = JsonSource(buildJsonObject {
+                put("name", "Test")
+            })
+        )
+    }
+
+    "convert message if tag header present and same (custom header key)" {
+        val converter = JsonConverter().apply {
+            configure(mutableMapOf<String, Any>(
+                "value.converter.tag" to "foo",
+                "tag.header.key" to "custom-tag",
+            ), false)
+        }
+        val headers = RecordHeaders().apply {
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
+            add("custom-tag", "foo".toByteArray())
+        }
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"name": "Test"}""".toByteArray()
+        )
+        connectData.schema() shouldBe null
+        val action = connectData.value() as BulkAction
+        action shouldBe BulkAction.Index(
+            id = "123",
+            type = "_doc",
+            index = "test",
+            routing = "456",
+            source = JsonSource(buildJsonObject {
+                put("name", "Test")
+            })
+        )
+    }
+
+    "skip message if tag header present and not the same" {
+        val converter = JsonConverter().apply {
+            configure(mutableMapOf<String, Any>(
+                "value.converter.tag" to "foo",
+                "tag.header.key" to "tag",
+            ), false)
+        }
+        val headers = RecordHeaders().apply {
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
+            add("tag", "bar".toByteArray())
+        }
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"name": "Test"}""".toByteArray()
+        )
+        connectData.schema() shouldBe null
+        connectData.value() shouldBe null
+    }
+
+    "handle message if no tag header" {
+        val converter = JsonConverter().apply {
+            configure(mutableMapOf<String, Any>(
+                "value.converter.tag" to "foo",
+                "tag.header.key" to "tag",
+            ), false)
+        }
+        val headers = RecordHeaders().apply {
+            add(
+                "action",
+                """{"index": {"_id": "123", "_type": "_doc", "_index": "test", "routing": "456"}}""".toByteArray()
+            )
+        }
+        val connectData = converter.toConnectData(
+            "<test>", headers, """{"name": "Test"}""".toByteArray()
+        )
+        connectData.schema() shouldBe null
+        val action = connectData.value() as BulkAction
+        action shouldBe BulkAction.Index(
+            id = "123",
+            type = "_doc",
+            index = "test",
+            routing = "456",
+            source = JsonSource(buildJsonObject {
+                put("name", "Test")
+            })
+        )
+    }
 })

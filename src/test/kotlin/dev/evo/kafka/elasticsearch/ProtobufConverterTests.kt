@@ -5,6 +5,8 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldStartWith
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.common.header.internals.RecordHeaders
@@ -115,5 +117,46 @@ class ProtobufConverterTests : StringSpec({
     "serialize null message" {
         val data =  converter.fromConnectData("<test>", null, null)
         data shouldBe null
+    }
+
+    "convert message if tag header present and same" {
+        val converter = ProtobufConverter().apply {
+            configure(mutableMapOf<String, Any>(
+                "protobuf.class" to "dev.evo.kafka.elasticsearch.TestProto\$TestDocument",
+                "value.converter.tag" to "foo",
+                "tag.header.key" to "tag",
+            ), false)
+        }
+
+        val headers = RecordHeaders().apply {
+            add("action", deleteAction.toByteArray())
+            add("tag", "foo".toByteArray())
+        }
+        val connectData =  converter.toConnectData("<test>", headers, null)
+        connectData.schema() shouldBe null
+        val action = connectData.value() as BulkAction
+        action shouldBe BulkAction.Delete(
+            id = "123",
+            routing = "456",
+        )
+    }
+     "convert message if no tag header" {
+        val converter = ProtobufConverter().apply {
+             configure(mutableMapOf<String, Any>(
+                 "protobuf.class" to "dev.evo.kafka.elasticsearch.TestProto\$TestDocument",
+                 "value.converter.tag" to "foo",
+                 "tag.header.key" to "tag",
+             ), false)
+        }
+         val headers = RecordHeaders().apply {
+             add("action", deleteAction.toByteArray())
+         }
+         val connectData =  converter.toConnectData("<test>", headers, null)
+         connectData.schema() shouldBe null
+         val action = connectData.value() as BulkAction
+         action shouldBe BulkAction.Delete(
+             id = "123",
+             routing = "456",
+         )
     }
 })
