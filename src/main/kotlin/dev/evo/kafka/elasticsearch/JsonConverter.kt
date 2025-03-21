@@ -12,6 +12,10 @@ import org.apache.kafka.connect.errors.DataException
 class JsonConverter : BaseConverter() {
     private val json = Json.Default
 
+    override lateinit var actionHeaderKey: String
+    override lateinit var tagHeaderKey: String
+    override lateinit var tagConfigValue: String
+
     class Config(props: MutableMap<String, *>) : AbstractConfig(CONFIG, props) {
         companion object {
             val CONFIG = baseConfigDef()

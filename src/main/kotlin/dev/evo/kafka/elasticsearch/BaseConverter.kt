@@ -5,9 +5,9 @@ import org.apache.kafka.connect.storage.Converter
 import org.apache.kafka.common.config.ConfigDef
 
 abstract class BaseConverter : Converter {
-    protected lateinit var actionHeaderKey: String
-    protected lateinit var tagHeaderKey: String
-    protected lateinit var tagConfigValue: String;
+    protected abstract var actionHeaderKey: String
+    protected abstract var tagHeaderKey: String
+    protected abstract var tagConfigValue: String
 
     companion object {
         val ACTION_HEADER_KEY = "action.header.key"

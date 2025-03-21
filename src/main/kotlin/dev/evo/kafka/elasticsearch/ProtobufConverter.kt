@@ -18,6 +18,10 @@ class ProtobufConverter : BaseConverter() {
     private val serializer = ProtobufSerializer()
     private val deserializer = ProtobufDeserializer()
 
+    override lateinit var actionHeaderKey: String
+    override lateinit var tagHeaderKey: String
+    override lateinit var tagConfigValue: String
+
     class Config(props: MutableMap<String, *>) : AbstractConfig(CONFIG, props) {
         companion object {
             val PROTOBUF_CLASS = "protobuf.class"
