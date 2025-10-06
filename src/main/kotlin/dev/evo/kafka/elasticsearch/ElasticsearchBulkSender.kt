@@ -201,7 +201,7 @@ class ElasticsearchBulkSender(
             else -> null
         }
         if (exception != null) {
-            logger.error("Error when sending bulk actions", exception)
+            logger.error("Error when sending bulk actions: $exception")
             logger.warn(formatFailedActions(
                 "Some documents weren't indexed, will retry",
                 bulk
