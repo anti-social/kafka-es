@@ -50,7 +50,7 @@ allprojects {
 
     val jar by tasks.getting(Jar::class)
 
-    val sourceJar by tasks.creating(Jar::class) {
+    val sourceJar by tasks.registering(Jar::class) {
         archiveClassifier.set("sources")
         from(sourceSets["main"].allSource)
     }
@@ -101,7 +101,7 @@ allprojects {
         repositories {
             maven {
                 name = "test"
-                url = uri("file://${rootProject.buildDir}/repos/testMaven")
+                url = uri("file://${rootProject.layout.buildDirectory}/repos/testMaven")
             }
 
             maven {
