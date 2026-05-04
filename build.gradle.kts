@@ -17,7 +17,7 @@ plugins {
     id("org.ajoberstar.grgit") version "4.1.1"
 }
 
-group = "dev.evo.kafka-es"
+group = "dev.evo"
 
 val gitDescribe = grgit.describe(mapOf("tags" to true, "match" to listOf("v*")))
     ?: "v0.0.0-unknown"
@@ -200,12 +200,8 @@ protobuf {
 nexusPublishing {
     repositories {
         sonatype {
-            val baseSonatypeUrl = project.properties["sonatypeUrl"]?.toString()
-                ?: System.getenv("SONATYPE_URL")
-                ?: "https://s01.oss.sonatype.org"
-
-            nexusUrl.set(uri("$baseSonatypeUrl/service/local/"))
-            snapshotRepositoryUrl.set(uri("$baseSonatypeUrl/content/repositories/snapshots/"))
+            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
+            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
 
             val sonatypeUser = project.properties["sonatypeUser"]?.toString()
                 ?: System.getenv("SONATYPE_USER")
