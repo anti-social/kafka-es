@@ -6,6 +6,7 @@ import dev.evo.elasticmagic.transport.PlainRequest
 import dev.evo.elasticmagic.transport.PlainResponse
 import dev.evo.elasticmagic.transport.Request
 import dev.evo.elasticmagic.transport.IdentityEncoder
+import dev.evo.kafka.elasticsearch.BulkMeta
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.StringSpec
@@ -76,6 +77,16 @@ class ElasticsearchBulkSenderTests : StringSpec({
         )
     )
 
+    val rawJsonIndexAction = BulkAction.Index(
+        BulkMeta.Index(
+            id = "1",
+            type = "_doc",
+            index = "test",
+            routing = "2",
+        ),
+        source = RawJsonSource("""{"name":"Test json","keyword":null}""")
+    )
+
     "test json" {
         val clock = TestTimeSource()
         val sender = ElasticsearchBulkSender(
@@ -96,6 +107,34 @@ class ElasticsearchBulkSenderTests : StringSpec({
         )
 
         val result = sender.sendBulk(listOf(jsonIndexAction))
+        result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction, BulkActionResult>>()
+        result.totalTimeMs shouldBe 2
+        result.tookTimeMs shouldBe 1
+        result.successActionsCount shouldBe 1
+        result.items shouldBe emptyList()
+        result.retryActions shouldBe emptyList()
+    }
+
+    "test raw json" {
+        val clock = TestTimeSource()
+        val sender = ElasticsearchBulkSender(
+            ElasticsearchMockTransport {
+                method shouldBe Method.POST
+                parameters shouldBe emptyMap()
+                path shouldBe "/_bulk"
+                contentType shouldBe "application/x-ndjson"
+                body shouldBe """
+                    |{"index":{"_id":"1","_type":"_doc","_index":"test","routing":"2"}}
+                    |{"name":"Test json","keyword":null}
+                    |""".trimMargin()
+
+                clock += 2.toDuration(DurationUnit.MILLISECONDS)
+            },
+            requestTimeoutMs = 10_000,
+            clock = clock,
+        )
+
+        val result = sender.sendBulk(listOf(rawJsonIndexAction))
         result.shouldBeInstanceOf<SendBulkResult.Success<BulkAction, BulkActionResult>>()
         result.totalTimeMs shouldBe 2
         result.tookTimeMs shouldBe 1

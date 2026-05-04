@@ -246,7 +246,7 @@ interface BulkSource {
 
 /**
  * Represents JSON source that is Serializable.
- * Can be use in transformations to produce a Serializable object.
+ * Can be used in transformations to produce a Serializable object.
  */
 data class SerializableSource<T>(val source: T, val serializer: SerializationStrategy<T>) : BulkSource {
     private val json = Json.Default
@@ -255,6 +255,15 @@ data class SerializableSource<T>(val source: T, val serializer: SerializationStr
         writer.append(json.encodeToString(serializer, source))
     }
 
+}
+
+/**
+ * Represents JSON source with JsonElement.
+ */
+data class RawJsonSource(val source: String) : BulkSource {
+    override fun write(writer: Appendable) {
+        writer.append(source)
+    }
 }
 
 /**
